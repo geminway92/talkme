@@ -63,7 +63,15 @@ create table public.push_subscriptions (
 
 -- Sin RLS: acceso abierto para anon/authenticated. La app se comporta
 -- correctamente por convención (cada cliente solo pide/envía lo suyo),
--- no porque la base de datos se lo impida a un tercero.
+-- no porque la base de datos se lo impida a un tercero. Supabase activa
+-- RLS por defecto en las tablas nuevas, así que hay que desactivarlo
+-- explícitamente aquí.
+alter table public.users disable row level security;
+alter table public.contacts disable row level security;
+alter table public.contact_requests disable row level security;
+alter table public.messages disable row level security;
+alter table public.push_subscriptions disable row level security;
+
 grant select, insert, update, delete on
   public.users, public.contacts, public.contact_requests,
   public.messages, public.push_subscriptions
