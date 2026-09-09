@@ -204,6 +204,10 @@
 
   if (cfg.INVITE_CODE) inviteCodeInput.value = cfg.INVITE_CODE;
 
+  // Sin VAPID_PUBLIC_KEY no hay Edge Function de push configurada todavía
+  // (es un paso opcional) — ocultamos el botón en vez de dejarlo roto.
+  if (!cfg.VAPID_PUBLIC_KEY) notifBtn.classList.add('hidden');
+
   inviteLinkBtn.addEventListener('click', async () => {
     const link = buildShareLink(cfg);
     try {
@@ -252,28 +256,48 @@
     if (error) authError.textContent = error.message;
   }
 
+  // Registro directo contra Supabase (sin Edge Function): el código de
+  // invitación se comprueba aquí, en el navegador. No es una barrera
+  // infranqueable para alguien muy técnico, pero el filtro real es que
+  // solo tu familia tiene el enlace con la URL/anon key de tu proyecto —
+  // ver README para la variante con Edge Function si quieres reforzarlo.
   async function register() {
     authError.textContent = '';
-    try {
-      const res = await fetch(`${cfg.SUPABASE_URL}/functions/v1/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: usernameInput.value.trim(),
-          email: emailInput.value.trim(),
-          password: passwordInput.value,
-          inviteCode: inviteCodeInput.value.trim(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        authError.textContent = data.error || 'No se pudo crear la cuenta';
-        return;
-      }
-      await login();
-    } catch (err) {
-      authError.textContent = 'Error de red al registrar';
+    const username = usernameInput.value.trim();
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+    const invite = inviteCodeInput.value.trim();
+
+    if (!username || username.length < 3) {
+      authError.textContent = 'El usuario debe tener al menos 3 caracteres';
+      return;
     }
+    if (cfg.INVITE_CODE && invite !== cfg.INVITE_CODE) {
+      authError.textContent = 'Código de invitación incorrecto';
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) {
+      authError.textContent = error.message;
+      return;
+    }
+    if (!data.session) {
+      authError.textContent =
+        'Cuenta creada, pero falta confirmar el email. Desactiva "Confirm email" en Supabase (Authentication → Providers → Email) para entrar directo, o revisa tu correo.';
+      return;
+    }
+
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert({ id: data.user.id, username });
+    if (profileError) {
+      authError.textContent = profileError.message.includes('duplicate')
+        ? 'Ese usuario ya existe, elige otro'
+        : profileError.message;
+      return;
+    }
+    // onAuthStateChange detecta la sesión ya activa y entra solo a la app
   }
 
   logoutBtn.addEventListener('click', async () => {

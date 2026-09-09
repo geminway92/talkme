@@ -48,10 +48,14 @@ alter table public.push_subscriptions enable row level security;
 
 -- profiles: visibles para cualquier usuario autenticado (hace falta para
 -- poder buscar a alguien por username al pedir contacto); cada uno solo
--- puede tocar su propia fila. El alta de perfiles la hace la Edge
--- Function "register" con la service role, que salta RLS.
+-- puede tocar su propia fila. Cada usuario crea su propia fila justo
+-- después de registrarse con Supabase Auth (signUp + insert), por eso
+-- hace falta permitir el insert propio además del update.
 create policy "profiles_select_authenticated" on public.profiles
   for select to authenticated using (true);
+
+create policy "profiles_insert_own" on public.profiles
+  for insert to authenticated with check (auth.uid() = id);
 
 create policy "profiles_update_own" on public.profiles
   for update to authenticated using (auth.uid() = id);
