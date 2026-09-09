@@ -64,9 +64,16 @@
   // Comprueba que la URL/anon key responden como un proyecto Supabase real
   // y que la tabla "profiles" existe (o sea, que se ejecutó la migración).
   async function testConnection(url, anonKey) {
-    const res = await fetch(`${url.replace(/\/+$/, '')}/rest/v1/`, {
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
-    });
+    const base = url.replace(/\/+$/, '');
+    // Las keys nuevas de Supabase (sb_publishable_...) no son un JWT, así
+    // que probamos primero solo con "apikey" y, si falla, con las dos
+    // cabeceras (formato JWT antiguo) — sin asumir cuál usa tu proyecto.
+    let res = await fetch(`${base}/rest/v1/`, { headers: { apikey: anonKey } });
+    if (!res.ok) {
+      res = await fetch(`${base}/rest/v1/`, {
+        headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+      });
+    }
     if (!res.ok) {
       throw new Error(`El servidor respondió ${res.status} — revisa la URL y la anon key`);
     }
