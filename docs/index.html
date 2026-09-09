@@ -13,6 +13,7 @@
       <p class="subtitle">Chat sencillo en tiempo real</p>
       <form id="auth-form">
         <input id="username" type="text" placeholder="Usuario" autocomplete="username" required />
+        <input id="email" type="email" placeholder="Email" autocomplete="email" required />
         <input id="password" type="password" placeholder="Contraseña" autocomplete="current-password" required />
         <input id="invite-code" type="text" placeholder="Código de invitación (solo para crear cuenta)" autocomplete="off" />
         <button type="submit" id="login-btn">Entrar</button>
@@ -26,7 +27,10 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <span id="me"></span>
-        <button id="logout-btn" title="Cerrar sesión">⏻</button>
+        <div>
+          <button id="notif-btn" title="Activar notificaciones">🔔</button>
+          <button id="logout-btn" title="Cerrar sesión">⏻</button>
+        </div>
       </div>
       <form id="add-contact-form">
         <input id="add-contact-input" type="text" placeholder="Añadir a tu red (usuario)" required />
@@ -63,6 +67,8 @@
     </main>
   </div>
 
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

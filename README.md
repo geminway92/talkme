@@ -1,106 +1,128 @@
 # TalkMe
 
-Chat privado estilo Telegram construido con Node.js, Express y WebSockets,
-pensado para un grupo cerrado (familia/amigos) y no para uso público masivo.
-Cada usuario tiene su propia "red": solo puedes chatear con contactos que
-hayan aceptado mutuamente tu solicitud.
+Chat privado estilo Telegram pensado para un grupo cerrado (familia/amigos),
+construido **solo sobre Supabase**: sin servidor propio que mantener vivo.
+El frontend (HTML/CSS/JS estático, sin build step) habla directamente con
+Supabase para autenticación, datos y tiempo real.
 
-## Características
+- **Postgres** (Supabase): usuarios, contactos, mensajes — con Row Level
+  Security, así que cada quien solo puede leer/escribir lo suyo.
+- **Supabase Auth**: login por email + contraseña.
+- **Supabase Realtime**: entrega de mensajes y presencia (en línea /
+  desconectado) en tiempo real, sin gestionar tú ningún WebSocket.
+- **Edge Functions**: registro cerrado con código de invitación, y envío de
+  notificaciones **push** al navegador/móvil cuando te llega un mensaje
+  (aunque tengas la pestaña cerrada).
+- **GitHub Pages**: hosting gratis de los archivos estáticos.
 
-- Registro cerrado mediante código de invitación (`INVITE_CODE`) e inicio de
-  sesión con contraseña (hash con bcrypt) y JWT.
-- Solicitudes de contacto con aceptación mutua: buscas a alguien por su
-  usuario, le llega una notificación en tiempo real y solo os podéis
-  escribir cuando ambos aceptáis (si el otro ya te había pedido a ti, se
-  conecta al instante).
-- Chat en tiempo real vía WebSockets (biblioteca `ws`).
-- Historial de mensajes persistido en **PostgreSQL** (funciona con el tier
-  gratuito de Supabase), para que nada se pierda si el servidor se
-  reinicia o se duerme por inactividad.
-- Indicador de presencia (en línea / desconectado).
-- Frontend en HTML/CSS/JS sin frameworks ni build step.
+Todo el conjunto cabe en el plan gratuito de Supabase + GitHub Pages: **$0/mes**.
 
-## Instalación
+## Cómo funciona la red de contactos
 
-1. Crea un proyecto gratis en [Supabase](https://supabase.com) (o cualquier
-   Postgres gestionado: Neon, Render Postgres, etc.).
-2. Copia la cadena de conexión (en Supabase: *Project Settings → Database →
-   Connection string → URI*; si tu red bloquea IPv6 usa el "Session pooler").
-3. Copia `.env.example` a `.env` y rellena `DATABASE_URL`, `INVITE_CODE` y,
-   opcionalmente, `JWT_SECRET`.
+Buscas a alguien por su nombre de usuario y le llega una solicitud. Solo
+podéis chatear cuando la otra persona la acepta (o si ya te había pedido a
+ti antes, se conecta al instante). Toda esa lógica vive en funciones de
+Postgres (`request_contact`, `accept_contact_request`, `send_message`, ver
+`supabase/migrations/0001_init.sql`), no en el cliente — así nadie puede
+saltársela editando el JavaScript del navegador.
 
-```bash
-cp .env.example .env
-npm install
-npm start
-```
+## Puesta en marcha (una sola vez)
 
-El servidor crea las tablas automáticamente la primera vez que arranca. Por
-defecto escucha en `http://localhost:3000` (o el puerto de `PORT`).
+### 1. Crear el proyecto en Supabase
 
-### Variables de entorno
+1. Crea un proyecto gratis en [supabase.com](https://supabase.com).
+2. En **SQL Editor**, pega y ejecuta el contenido de
+   `supabase/migrations/0001_init.sql`. Esto crea las tablas, las políticas
+   de seguridad (RLS) y las funciones RPC.
+3. En **Authentication → Providers → Email**, desactiva *"Allow new users to
+   sign up"*. Así nadie puede crear una cuenta saltándose el código de
+   invitación llamando directamente a la API de Supabase — solo la Edge
+   Function `register` (con la service role) puede crear usuarios.
+4. En **Authentication → Providers → Email**, también puedes desactivar la
+   confirmación por email si no quieres que cada familiar tenga que
+   confirmar su correo (la Edge Function ya crea el usuario con el email
+   marcado como confirmado).
 
-- `DATABASE_URL` **(obligatoria)**: cadena de conexión Postgres.
-- `INVITE_CODE`: código que debe introducirse para crear una cuenta. Sin él,
-  el registro queda abierto a cualquiera que llegue a la URL — imprescindible
-  si vas a exponer el servidor a internet para tu familia.
-- `JWT_SECRET`: secreto para firmar las sesiones. Si no lo defines, el
-  servidor genera uno automáticamente y lo guarda en la base de datos (tabla
-  `settings`), así que sobrevive a reinicios sin que tengas que hacer nada.
+### 2. Instalar la CLI de Supabase y desplegar las Edge Functions
 
 ```bash
-DATABASE_URL=postgresql://... INVITE_CODE=mi-familia-2026 npm start
+npm install -g supabase
+supabase login
+supabase link --project-ref TU-PROJECT-REF   # está en la URL del proyecto
+
+# Genera un par de claves VAPID para las notificaciones push
+npx web-push generate-vapid-keys
+
+supabase secrets set \
+  INVITE_CODE=mi-familia-2026 \
+  VAPID_PUBLIC_KEY=xxxx \
+  VAPID_PRIVATE_KEY=yyyy \
+  VAPID_SUBJECT=mailto:tu-email@ejemplo.com \
+  WEBHOOK_SECRET=$(openssl rand -hex 24)
+
+supabase functions deploy register --no-verify-jwt
+supabase functions deploy send-push --no-verify-jwt
 ```
 
-## Cómo probarlo
+### 3. Conectar el envío automático de push
 
-1. Abre `http://localhost:3000` y crea una cuenta (usuario + contraseña +
-   código de invitación).
-2. Abre una ventana de incógnito y crea una segunda cuenta con el mismo
-   código de invitación.
-3. Desde la primera cuenta, usa "Añadir a tu red" con el nombre de la
-   segunda. Le llegará como "Solicitud recibida".
-4. Desde la segunda cuenta, pulsa ✓ para aceptar. A partir de ahí ambas
-   cuentas ven al otro en "Tu red".
-5. Selecciona el contacto en la barra lateral y empieza a chatear: los
-   mensajes se entregan en tiempo real mientras ambos estén conectados, y
-   quedan guardados para cuando el otro se conecte.
+En el dashboard de Supabase: **Database → Webhooks → Create a new hook**.
+
+- Tabla: `messages`, evento: `Insert`.
+- Tipo: *Edge Function* → `send-push`.
+- Cabecera HTTP adicional: `x-webhook-secret` = el mismo valor que pusiste
+  en `WEBHOOK_SECRET` arriba (así nadie más puede llamar a esa función y
+  hacer que envíe pushes falsos).
+
+Cada vez que se inserte un mensaje, Supabase llamará a `send-push`, que
+mira las suscripciones push del destinatario y le manda la notificación.
+
+### 4. Configurar el frontend
+
+Edita `docs/config.js` con los datos de tu proyecto (**Project Settings →
+API**): `SUPABASE_URL`, la `anon` `SUPABASE_ANON_KEY`, y el mismo
+`VAPID_PUBLIC_KEY` que generaste antes.
+
+### 5. Publicar en GitHub Pages
+
+Sube los cambios a GitHub y activa Pages: **Settings → Pages → Source:
+Deploy from a branch → Branch: `main`, carpeta `/docs`**. En unos minutos
+tu chat estará en `https://tu-usuario.github.io/talkme/`.
+
+## Probarlo
+
+1. Abre la URL de GitHub Pages, crea una cuenta (usuario + email +
+   contraseña + código de invitación).
+2. Pulsa el icono 🔔 para activar las notificaciones push (el navegador te
+   pedirá permiso una vez).
+3. Repite en una ventana de incógnito con una segunda cuenta.
+4. Desde la primera, añade a la segunda por su nombre de usuario. Acepta la
+   solicitud desde la otra cuenta.
+5. Chatead — los mensajes llegan en tiempo real, y si cierras la pestaña
+   del otro, aun así le llega la notificación push al móvil/escritorio.
 
 ## Estructura
 
 ```
-server/
-  index.js   Servidor Express + WebSocket, rutas REST
-  db.js      Acceso a PostgreSQL (usuarios, contactos, mensajes, settings)
-  auth.js    Registro/verificación de JWT
-public/
-  index.html Interfaz (login + chat)
-  style.css  Estilos
-  app.js     Lógica cliente (fetch API + WebSocket)
-render.yaml  Plantilla de despliegue para Render
+docs/                          Frontend estático (GitHub Pages)
+  index.html, style.css, app.js
+  sw.js                        Service worker para notificaciones push
+  config.js                    URL/claves públicas de tu proyecto Supabase
+supabase/
+  migrations/0001_init.sql     Tablas, RLS y funciones RPC
+  functions/register/          Edge Function: alta con código de invitación
+  functions/send-push/         Edge Function: envía la notificación push
 ```
-
-## Desplegar gratis en Render
-
-1. Sube el repo a GitHub (ya lo tienes) y crea la base de datos en Supabase
-   como se explica arriba.
-2. En [Render](https://render.com), *New → Web Service*, conecta el repo.
-   Render detecta `render.yaml` automáticamente (build: `npm install`,
-   start: `npm start`, plan `free`).
-3. En la pestaña *Environment* del servicio, define `DATABASE_URL` e
-   `INVITE_CODE` (y `JWT_SECRET` si quieres fijarlo tú).
-4. Despliega. La URL pública de Render sirve tanto el frontend como el
-   WebSocket (`wss://tu-app.onrender.com/ws`), sin configuración extra.
-
-Ten en cuenta que en el plan free, Render duerme el servicio tras ~15 min sin
-tráfico: la primera visita tras la pausa tarda unos segundos en despertar y
-cualquier WebSocket abierto en ese momento se corta, pero como los mensajes
-ya viven en Postgres no se pierde nada — simplemente hay que reconectar (el
-cliente ya reintenta la conexión automáticamente).
 
 ## Notas de seguridad
 
-Proyecto pensado para aprendizaje/uso personal en una red de confianza. Antes
-de exponerlo más ampliamente, considera: HTTPS/WSS (Render ya lo da por
-defecto), limitar intentos de login, y revisar los límites gratuitos de
-Supabase/Render si el grupo crece mucho.
+- La `anon key` de Supabase es pública por diseño (va en el JS del
+  navegador); la seguridad la da RLS + las funciones RPC, no ocultar esa
+  clave.
+- La `service role key` **nunca** debe ir al frontend — solo la usan las
+  Edge Functions, como secret del lado de Supabase.
+- Con "Allow new users to sign up" desactivado, la única puerta de entrada
+  es la Edge Function `register`, que exige el código de invitación.
+- Revisa de vez en cuando los límites gratuitos de Supabase (filas,
+  invocaciones de Edge Functions, ancho de banda de Realtime) si el grupo
+  familiar crece mucho.

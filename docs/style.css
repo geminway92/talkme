@@ -116,10 +116,15 @@ button {
   border-bottom: 1px solid #1f2b38;
 }
 
-#logout-btn {
+#logout-btn,
+#notif-btn {
   background: transparent;
   color: #8a97a5;
   font-size: 16px;
+}
+
+#notif-btn.active {
+  color: #4fa3ff;
 }
 
 #add-contact-form {
