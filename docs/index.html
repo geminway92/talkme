@@ -7,7 +7,29 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="auth-screen" class="screen">
+  <div id="setup-screen" class="screen hidden">
+    <div class="auth-box">
+      <h1>TalkMe</h1>
+      <p class="subtitle">Configura la conexión (solo lo hace quien monta el chat, una vez)</p>
+      <form id="setup-form">
+        <input id="setup-url" type="url" placeholder="URL del proyecto Supabase" required />
+        <input id="setup-anon" type="text" placeholder="Anon public key de Supabase" required />
+        <input id="setup-vapid" type="text" placeholder="VAPID public key (para notificaciones push)" />
+        <input id="setup-invite" type="text" placeholder="Código de invitación (para prellenarlo en el enlace)" />
+        <button type="submit">Guardar y generar enlace</button>
+      </form>
+      <p id="setup-error" class="error"></p>
+
+      <div id="setup-result" class="hidden">
+        <p class="subtitle">Comparte este enlace con tu familia — ya vendrá todo configurado:</p>
+        <input id="setup-share-link" type="text" readonly />
+        <button id="setup-copy-btn" type="button">Copiar enlace</button>
+        <button id="setup-continue-btn" type="button">Continuar a mi cuenta</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="auth-screen" class="screen hidden">
     <div class="auth-box">
       <h1>TalkMe</h1>
       <p class="subtitle">Chat sencillo en tiempo real</p>
@@ -28,6 +50,7 @@
       <div class="sidebar-header">
         <span id="me"></span>
         <div>
+          <button id="invite-link-btn" title="Copiar enlace de invitación">🔗</button>
           <button id="notif-btn" title="Activar notificaciones">🔔</button>
           <button id="logout-btn" title="Cerrar sesión">⏻</button>
         </div>
@@ -67,7 +90,6 @@
     </main>
   </div>
 
-  <script src="config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="app.js"></script>
 </body>

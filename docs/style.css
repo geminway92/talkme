@@ -66,6 +66,28 @@ input:focus {
   border-color: #4fa3ff;
 }
 
+#setup-screen .auth-box {
+  width: 380px;
+}
+
+#setup-result {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#setup-result button {
+  background: #4fa3ff;
+  color: #0f1620;
+}
+
+#setup-continue-btn {
+  background: transparent;
+  color: #4fa3ff;
+  border: 1px solid #4fa3ff;
+}
+
 button {
   cursor: pointer;
   border: none;

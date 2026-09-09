@@ -1,5 +1,98 @@
 (() => {
-  const cfg = window.TALKME_CONFIG;
+  const LS_KEY = 'talkme_conn_config';
+
+  // La URL/anon key/VAPID public key de Supabase no son secretos (Supabase
+  // los diseña para ir en el navegador; la seguridad la da RLS). Por eso es
+  // seguro llevarlos en la propia URL: quien monta el chat rellena el
+  // formulario una vez, y comparte el enlace resultante con su familia —
+  // nadie tiene que tocar un archivo de configuración ni variables de
+  // entorno del lado del cliente.
+  function readUrlConfig() {
+    const params = new URLSearchParams(location.search);
+    const url = params.get('su');
+    const anon = params.get('sk');
+    if (!url || !anon) return null;
+    return {
+      SUPABASE_URL: url,
+      SUPABASE_ANON_KEY: anon,
+      VAPID_PUBLIC_KEY: params.get('vp') || '',
+      INVITE_CODE: params.get('inv') || '',
+    };
+  }
+
+  function readStoredConfig() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function saveConfig(cfg) {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(cfg));
+    } catch (err) {
+      // localStorage no disponible (modo privado estricto, etc.): seguimos
+      // igual, solo que habrá que volver a abrir el enlace con los datos.
+    }
+  }
+
+  function buildShareLink(cfg) {
+    const params = new URLSearchParams({ su: cfg.SUPABASE_URL, sk: cfg.SUPABASE_ANON_KEY });
+    if (cfg.VAPID_PUBLIC_KEY) params.set('vp', cfg.VAPID_PUBLIC_KEY);
+    if (cfg.INVITE_CODE) params.set('inv', cfg.INVITE_CODE);
+    return `${location.origin}${location.pathname}?${params.toString()}`;
+  }
+
+  const setupScreen = document.getElementById('setup-screen');
+  const setupForm = document.getElementById('setup-form');
+  const setupError = document.getElementById('setup-error');
+  const setupResult = document.getElementById('setup-result');
+  const setupShareLink = document.getElementById('setup-share-link');
+  const setupCopyBtn = document.getElementById('setup-copy-btn');
+  const setupContinueBtn = document.getElementById('setup-continue-btn');
+
+  function showSetupScreen() {
+    setupScreen.classList.remove('hidden');
+  }
+
+  setupForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    setupError.textContent = '';
+    const cfg = {
+      SUPABASE_URL: document.getElementById('setup-url').value.trim().replace(/\/+$/, ''),
+      SUPABASE_ANON_KEY: document.getElementById('setup-anon').value.trim(),
+      VAPID_PUBLIC_KEY: document.getElementById('setup-vapid').value.trim(),
+      INVITE_CODE: document.getElementById('setup-invite').value.trim(),
+    };
+    if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
+      setupError.textContent = 'La URL y la anon key son obligatorias';
+      return;
+    }
+    saveConfig(cfg);
+    setupShareLink.value = buildShareLink(cfg);
+    setupForm.classList.add('hidden');
+    setupResult.classList.remove('hidden');
+  });
+
+  setupCopyBtn.addEventListener('click', async () => {
+    setupShareLink.select();
+    try {
+      await navigator.clipboard.writeText(setupShareLink.value);
+      setupCopyBtn.textContent = '¡Copiado!';
+      setTimeout(() => (setupCopyBtn.textContent = 'Copiar enlace'), 1500);
+    } catch (err) {
+      // el usuario puede copiarlo a mano del input seleccionado
+    }
+  });
+
+  setupContinueBtn.addEventListener('click', () => {
+    setupScreen.classList.add('hidden');
+    boot(readStoredConfig());
+  });
+
+  function boot(cfg) {
   const supabase = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
   const state = {
@@ -25,7 +118,21 @@
   const registerBtn = document.getElementById('register-btn');
   const logoutBtn = document.getElementById('logout-btn');
   const notifBtn = document.getElementById('notif-btn');
+  const inviteLinkBtn = document.getElementById('invite-link-btn');
   const meLabel = document.getElementById('me');
+
+  if (cfg.INVITE_CODE) inviteCodeInput.value = cfg.INVITE_CODE;
+
+  inviteLinkBtn.addEventListener('click', async () => {
+    const link = buildShareLink(cfg);
+    try {
+      await navigator.clipboard.writeText(link);
+      inviteLinkBtn.textContent = '✅';
+      setTimeout(() => (inviteLinkBtn.textContent = '🔗'), 1500);
+    } catch (err) {
+      window.prompt('Copia este enlace de invitación:', link);
+    }
+  });
 
   const addContactForm = document.getElementById('add-contact-form');
   const addContactInput = document.getElementById('add-contact-input');
@@ -398,4 +505,21 @@
     if (session?.user) enterApp(session.user);
     else showAuthScreen();
   });
+  } // fin de boot()
+
+  // ---- Resolución de la configuración de conexión ----
+  const urlConfig = readUrlConfig();
+  if (urlConfig) {
+    saveConfig(urlConfig);
+    // limpia los parámetros de la URL para que no queden en el historial
+    history.replaceState({}, '', location.pathname);
+    boot(urlConfig);
+  } else {
+    const stored = readStoredConfig();
+    if (stored) {
+      boot(stored);
+    } else {
+      showSetupScreen();
+    }
+  }
 })();

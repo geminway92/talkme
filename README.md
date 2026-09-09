@@ -77,27 +77,45 @@ En el dashboard de Supabase: **Database → Webhooks → Create a new hook**.
 Cada vez que se inserte un mensaje, Supabase llamará a `send-push`, que
 mira las suscripciones push del destinatario y le manda la notificación.
 
-### 4. Configurar el frontend
-
-Edita `docs/config.js` con los datos de tu proyecto (**Project Settings →
-API**): `SUPABASE_URL`, la `anon` `SUPABASE_ANON_KEY`, y el mismo
-`VAPID_PUBLIC_KEY` que generaste antes.
-
-### 5. Publicar en GitHub Pages
+### 4. Publicar en GitHub Pages
 
 Sube los cambios a GitHub y activa Pages: **Settings → Pages → Source:
 Deploy from a branch → Branch: `main`, carpeta `/docs`**. En unos minutos
-tu chat estará en `https://tu-usuario.github.io/talkme/`.
+tu chat estará en `https://tu-usuario.github.io/talkme/`. El repo debe ser
+público para que Pages funcione en el plan gratuito — no hay ningún secreto
+en él (ver "Notas de seguridad" más abajo).
+
+### 5. Configurar la conexión (sin tocar código)
+
+Abre la URL de GitHub Pages tú primero. Como todavía no hay ninguna
+configuración guardada, verás un formulario para rellenar:
+
+- **URL del proyecto Supabase** y **anon public key** (Project Settings →
+  API).
+- **VAPID public key** (la que generaste en el paso 2).
+- **Código de invitación** (el mismo `INVITE_CODE` que configuraste como
+  secret) — esto es opcional, solo sirve para que venga precargado en el
+  enlace que vas a compartir.
+
+Al guardar, la app te da un **enlace único** con todo eso ya incluido.
+Ese es el enlace que le mandas a tu familia: al abrirlo, la app se conecta
+sola a tu Supabase y les deja directamente en la pantalla de "crear cuenta"
+con el código de invitación ya puesto — solo tienen que elegir su usuario,
+email y contraseña. Nadie edita archivos ni toca variables de entorno.
+
+Si más adelante quieres volver a coger ese enlace (para invitar a alguien
+más), pulsa el icono 🔗 en la barra lateral una vez dentro del chat.
 
 ## Probarlo
 
-1. Abre la URL de GitHub Pages, crea una cuenta (usuario + email +
-   contraseña + código de invitación).
+1. Sigue el paso 5 de arriba y guarda tu propia cuenta con el enlace
+   generado.
 2. Pulsa el icono 🔔 para activar las notificaciones push (el navegador te
    pedirá permiso una vez).
-3. Repite en una ventana de incógnito con una segunda cuenta.
-4. Desde la primera, añade a la segunda por su nombre de usuario. Acepta la
-   solicitud desde la otra cuenta.
+3. Copia el enlace (🔗) y ábrelo en una ventana de incógnito para simular a
+   un familiar; crea una segunda cuenta ahí.
+4. Desde la primera cuenta, añade a la segunda por su nombre de usuario.
+   Acepta la solicitud desde la otra cuenta.
 5. Chatead — los mensajes llegan en tiempo real, y si cierras la pestaña
    del otro, aun así le llega la notificación push al móvil/escritorio.
 
@@ -107,22 +125,31 @@ tu chat estará en `https://tu-usuario.github.io/talkme/`.
 docs/                          Frontend estático (GitHub Pages)
   index.html, style.css, app.js
   sw.js                        Service worker para notificaciones push
-  config.js                    URL/claves públicas de tu proyecto Supabase
 supabase/
   migrations/0001_init.sql     Tablas, RLS y funciones RPC
   functions/register/          Edge Function: alta con código de invitación
   functions/send-push/         Edge Function: envía la notificación push
 ```
 
+No hay ningún archivo de configuración con datos de tu proyecto: la app
+guarda la conexión en `localStorage` del navegador tras el primer formulario
+(o al abrir un enlace de invitación que ya la trae en la URL).
+
 ## Notas de seguridad
 
-- La `anon key` de Supabase es pública por diseño (va en el JS del
-  navegador); la seguridad la da RLS + las funciones RPC, no ocultar esa
-  clave.
-- La `service role key` **nunca** debe ir al frontend — solo la usan las
-  Edge Functions, como secret del lado de Supabase.
+- La `anon key`, la URL del proyecto y la `VAPID public key` **no son
+  secretos** — Supabase los diseña para ir en el navegador; por eso es
+  seguro llevarlos en el enlace de invitación o en `localStorage`. La
+  seguridad real la da RLS + las funciones RPC (ver la migración), no
+  ocultar esos valores.
+- La `service role key` y la `VAPID_PRIVATE_KEY` **nunca** deben ir al
+  frontend — solo las usan las Edge Functions, como secrets del lado de
+  Supabase (`supabase secrets set`, paso 2). Eso sí sigue siendo un paso
+  único en terminal, no algo que gestiones por cada familiar.
 - Con "Allow new users to sign up" desactivado, la única puerta de entrada
-  es la Edge Function `register`, que exige el código de invitación.
+  es la Edge Function `register`, que exige el código de invitación — el
+  mismo código que va precargado en el enlace es el que la función
+  comprueba contra el secret `INVITE_CODE`.
 - Revisa de vez en cuando los límites gratuitos de Supabase (filas,
   invocaciones de Edge Functions, ancho de banda de Realtime) si el grupo
   familiar crece mucho.
