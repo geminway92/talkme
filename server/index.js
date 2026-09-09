@@ -21,6 +21,24 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server, path: '/ws' });
+
+// userId -> ws connection
+const onlineUsers = new Map();
+
+function notifyUser(userId, payload) {
+  const ws = onlineUsers.get(userId);
+  if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(payload));
+}
+
+function broadcastPresence(userId, online) {
+  const payload = JSON.stringify({ type: 'presence', userId, online });
+  for (const ws of onlineUsers.values()) {
+    if (ws.readyState === ws.OPEN) ws.send(payload);
+  }
+}
+
 // ---- Auth ----
 
 app.post('/api/register', (req, res) => {
@@ -52,7 +70,7 @@ app.post('/api/login', (req, res) => {
   res.json({ token, user: { id: user.id, username: user.username } });
 });
 
-// ---- Red de contactos ----
+// ---- Red de contactos (con aceptación mutua) ----
 
 app.get('/api/contacts', authMiddleware, (req, res) => {
   const contacts = db.getContacts(req.user.id).map((c) => ({
@@ -62,7 +80,14 @@ app.get('/api/contacts', authMiddleware, (req, res) => {
   res.json({ contacts });
 });
 
-app.post('/api/contacts', authMiddleware, (req, res) => {
+app.get('/api/contacts/requests', authMiddleware, (req, res) => {
+  res.json({
+    incoming: db.getIncomingRequests(req.user.id),
+    outgoing: db.getOutgoingRequests(req.user.id),
+  });
+});
+
+app.post('/api/contacts/requests', authMiddleware, (req, res) => {
   const { username } = req.body || {};
   if (!username) return res.status(400).json({ error: 'Falta el usuario' });
   const target = db.findUserByUsername(username);
@@ -70,8 +95,50 @@ app.post('/api/contacts', authMiddleware, (req, res) => {
   if (target.id === req.user.id) {
     return res.status(400).json({ error: 'No puedes añadirte a ti mismo' });
   }
-  db.addContact(req.user.id, target.id);
-  res.json({ contact: { id: target.id, username: target.username } });
+
+  const result = db.requestContact(req.user.id, target.id);
+
+  if (result.status === 'already_contact') {
+    return res.status(409).json({ error: 'Ya está en tu red' });
+  }
+  if (result.status === 'already_pending') {
+    return res.status(409).json({ error: 'Ya le enviaste una solicitud' });
+  }
+  if (result.status === 'accepted') {
+    notifyUser(target.id, {
+      type: 'contact_accepted',
+      by: { id: req.user.id, username: req.user.username },
+    });
+    return res.json({
+      status: 'accepted',
+      contact: { id: target.id, username: target.username },
+    });
+  }
+
+  notifyUser(target.id, {
+    type: 'contact_request',
+    request: { id: result.request.id, from: { id: req.user.id, username: req.user.username } },
+  });
+  res.json({ status: 'pending' });
+});
+
+app.post('/api/contacts/requests/:id/accept', authMiddleware, (req, res) => {
+  const requestId = Number(req.params.id);
+  const fromUser = db.acceptRequest(requestId, req.user.id);
+  if (!fromUser) return res.status(404).json({ error: 'Solicitud no encontrada' });
+
+  notifyUser(fromUser.id, {
+    type: 'contact_accepted',
+    by: { id: req.user.id, username: req.user.username },
+  });
+  res.json({ contact: { id: fromUser.id, username: fromUser.username } });
+});
+
+app.post('/api/contacts/requests/:id/reject', authMiddleware, (req, res) => {
+  const requestId = Number(req.params.id);
+  const removed = db.removeRequest(requestId, req.user.id);
+  if (!removed) return res.status(404).json({ error: 'Solicitud no encontrada' });
+  res.json({ ok: true });
 });
 
 app.get('/api/messages/:contactId', authMiddleware, (req, res) => {
@@ -85,20 +152,7 @@ app.get('/api/messages/:contactId', authMiddleware, (req, res) => {
   res.json({ messages });
 });
 
-// ---- Servidor HTTP + WebSocket ----
-
-const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: '/ws' });
-
-// userId -> ws connection
-const onlineUsers = new Map();
-
-function broadcastPresence(userId, online) {
-  const payload = JSON.stringify({ type: 'presence', userId, online });
-  for (const ws of onlineUsers.values()) {
-    if (ws.readyState === ws.OPEN) ws.send(payload);
-  }
-}
+// ---- WebSocket ----
 
 wss.on('connection', (ws, req) => {
   const url = new URL(req.url, 'http://localhost');

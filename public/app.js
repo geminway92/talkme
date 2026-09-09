@@ -3,6 +3,8 @@
     token: localStorage.getItem('talkme_token') || null,
     user: JSON.parse(localStorage.getItem('talkme_user') || 'null'),
     contacts: [],
+    incomingRequests: [],
+    outgoingRequests: [],
     selectedContact: null,
     ws: null,
   };
@@ -24,6 +26,10 @@
   const addContactInput = document.getElementById('add-contact-input');
   const contactError = document.getElementById('contact-error');
   const contactList = document.getElementById('contact-list');
+  const requestsSection = document.getElementById('requests-section');
+  const incomingRequestsList = document.getElementById('incoming-requests');
+  const outgoingSection = document.getElementById('outgoing-section');
+  const outgoingRequestsList = document.getElementById('outgoing-requests');
 
   const chatEmpty = document.getElementById('chat-empty');
   const chatActive = document.getElementById('chat-active');
@@ -110,12 +116,13 @@
     const username = addContactInput.value.trim();
     if (!username) return;
     try {
-      await api('/api/contacts', {
+      const result = await api('/api/contacts/requests', {
         method: 'POST',
         body: JSON.stringify({ username }),
       });
       addContactInput.value = '';
-      await loadContacts();
+      if (result.status === 'accepted') await loadContacts();
+      await loadRequests();
     } catch (err) {
       contactError.textContent = err.message;
     }
@@ -125,6 +132,63 @@
     const { contacts } = await api('/api/contacts');
     state.contacts = contacts;
     renderContacts();
+  }
+
+  async function loadRequests() {
+    const { incoming, outgoing } = await api('/api/contacts/requests');
+    state.incomingRequests = incoming;
+    state.outgoingRequests = outgoing;
+    renderRequests();
+  }
+
+  function renderRequests() {
+    incomingRequestsList.innerHTML = '';
+    for (const r of state.incomingRequests) {
+      const li = document.createElement('li');
+      const name = document.createElement('span');
+      name.textContent = r.from.username;
+      const actions = document.createElement('div');
+      actions.className = 'request-actions';
+
+      const acceptBtn = document.createElement('button');
+      acceptBtn.className = 'btn-accept';
+      acceptBtn.textContent = '✓';
+      acceptBtn.title = 'Aceptar';
+      acceptBtn.addEventListener('click', () => respondToRequest(r.id, 'accept'));
+
+      const rejectBtn = document.createElement('button');
+      rejectBtn.className = 'btn-reject';
+      rejectBtn.textContent = '✕';
+      rejectBtn.title = 'Rechazar';
+      rejectBtn.addEventListener('click', () => respondToRequest(r.id, 'reject'));
+
+      actions.appendChild(acceptBtn);
+      actions.appendChild(rejectBtn);
+      li.appendChild(name);
+      li.appendChild(actions);
+      incomingRequestsList.appendChild(li);
+    }
+    requestsSection.classList.toggle('hidden', state.incomingRequests.length === 0);
+
+    outgoingRequestsList.innerHTML = '';
+    for (const r of state.outgoingRequests) {
+      const li = document.createElement('li');
+      const name = document.createElement('span');
+      name.textContent = `${r.to.username} (pendiente)`;
+      li.appendChild(name);
+      outgoingRequestsList.appendChild(li);
+    }
+    outgoingSection.classList.toggle('hidden', state.outgoingRequests.length === 0);
+  }
+
+  async function respondToRequest(requestId, action) {
+    try {
+      await api(`/api/contacts/requests/${requestId}/${action}`, { method: 'POST' });
+      if (action === 'accept') await loadContacts();
+      await loadRequests();
+    } catch (err) {
+      contactError.textContent = err.message;
+    }
   }
 
   function renderContacts() {
@@ -213,6 +277,9 @@
             chatStatus.textContent = contact.online ? 'en línea' : 'desconectado';
           }
         }
+      } else if (data.type === 'contact_request' || data.type === 'contact_accepted') {
+        loadRequests();
+        if (data.type === 'contact_accepted') loadContacts();
       }
     };
 
@@ -230,7 +297,7 @@
     authScreen.classList.add('hidden');
     appScreen.classList.remove('hidden');
     meLabel.textContent = state.user.username;
-    await loadContacts();
+    await Promise.all([loadContacts(), loadRequests()]);
     connectWS();
   }
 

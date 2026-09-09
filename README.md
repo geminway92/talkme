@@ -2,14 +2,17 @@
 
 Chat privado estilo Telegram construido con Node.js, Express y WebSockets,
 pensado para un grupo cerrado (familia/amigos) y no para uso público masivo.
-Cada usuario tiene su propia "red": solo puedes chatear con los contactos que
-tú mismo añades por nombre de usuario.
+Cada usuario tiene su propia "red": solo puedes chatear con contactos que
+hayan aceptado mutuamente tu solicitud.
 
 ## Características
 
 - Registro cerrado mediante código de invitación (`INVITE_CODE`) e inicio de
   sesión con contraseña (hash con bcrypt) y JWT.
-- Añadir contactos a tu red buscando por nombre de usuario.
+- Solicitudes de contacto con aceptación mutua: buscas a alguien por su
+  usuario, le llega una notificación en tiempo real y solo os podéis
+  escribir cuando ambos aceptáis (si el otro ya te había pedido a ti, se
+  conecta al instante).
 - Chat en tiempo real vía WebSockets (biblioteca `ws`).
 - Historial de mensajes persistido en `data/db.json` (escritura atómica).
 - Indicador de presencia (en línea / desconectado).
@@ -42,11 +45,15 @@ INVITE_CODE=mi-familia-2026 JWT_SECRET=$(openssl rand -hex 48) npm start
 
 ## Cómo probarlo
 
-1. Abre `http://localhost:3000` y crea una cuenta (usuario + contraseña).
-2. Abre una ventana de incógnito y crea una segunda cuenta.
-3. En cada cuenta, usa el campo "Añadir a tu red" para introducir el nombre
-   de usuario de la otra cuenta.
-4. Selecciona el contacto en la barra lateral y empieza a chatear: los
+1. Abre `http://localhost:3000` y crea una cuenta (usuario + contraseña +
+   código de invitación).
+2. Abre una ventana de incógnito y crea una segunda cuenta con el mismo
+   código de invitación.
+3. Desde la primera cuenta, usa "Añadir a tu red" con el nombre de la
+   segunda. Le llegará como "Solicitud recibida".
+4. Desde la segunda cuenta, pulsa ✓ para aceptar. A partir de ahí ambas
+   cuentas ven al otro en "Tu red".
+5. Selecciona el contacto en la barra lateral y empieza a chatear: los
    mensajes se entregan en tiempo real mientras ambos estén conectados, y
    quedan guardados para cuando el otro se conecte.
 
