@@ -65,7 +65,7 @@
   // y que la tabla "profiles" existe (o sea, que se ejecutó la migración).
   async function testConnection(url, anonKey) {
     const res = await fetch(`${url.replace(/\/+$/, '')}/rest/v1/`, {
-      headers: { apikey: anonKey },
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
     });
     if (!res.ok) {
       throw new Error(`El servidor respondió ${res.status} — revisa la URL y la anon key`);
