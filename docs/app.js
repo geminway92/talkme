@@ -190,7 +190,6 @@
   const appScreen = document.getElementById('app-screen');
   const authForm = document.getElementById('auth-form');
   const usernameInput = document.getElementById('username');
-  const emailInput = document.getElementById('email');
   const passwordInput = document.getElementById('password');
   const inviteCodeInput = document.getElementById('invite-code');
   const authError = document.getElementById('auth-error');
@@ -240,6 +239,15 @@
     return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
+  // Supabase Auth necesita un email por dentro, pero aquí solo se pide
+  // usuario: se genera un email interno determinista a partir del nombre
+  // de usuario. Nadie lo ve ni lo escribe, y no hace falta que sea real
+  // porque "Confirm email" está desactivado.
+  function usernameToEmail(username) {
+    const slug = username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+    return `${slug}@talkme.internal`;
+  }
+
   // ---- Auth ----
   authForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -250,7 +258,7 @@
   async function login() {
     authError.textContent = '';
     const { error } = await supabase.auth.signInWithPassword({
-      email: emailInput.value.trim(),
+      email: usernameToEmail(usernameInput.value),
       password: passwordInput.value,
     });
     if (error) authError.textContent = error.message;
@@ -264,7 +272,6 @@
   async function register() {
     authError.textContent = '';
     const username = usernameInput.value.trim();
-    const email = emailInput.value.trim();
     const password = passwordInput.value;
     const invite = inviteCodeInput.value.trim();
 
@@ -277,14 +284,19 @@
       return;
     }
 
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email: usernameToEmail(username),
+      password,
+    });
     if (error) {
-      authError.textContent = error.message;
+      authError.textContent = error.message.includes('already registered')
+        ? 'Ese usuario ya existe, elige otro'
+        : error.message;
       return;
     }
     if (!data.session) {
       authError.textContent =
-        'Cuenta creada, pero falta confirmar el email. Desactiva "Confirm email" en Supabase (Authentication → Providers → Email) para entrar directo, o revisa tu correo.';
+        'Cuenta creada, pero falta confirmar el email. Desactiva "Confirm email" en Supabase (Authentication → Providers → Email) para entrar directo.';
       return;
     }
 

@@ -7,7 +7,8 @@ Supabase para autenticación, datos y tiempo real.
 
 - **Postgres** (Supabase): usuarios, contactos, mensajes — con Row Level
   Security, así que cada quien solo puede leer/escribir lo suyo.
-- **Supabase Auth**: login por email + contraseña.
+- **Supabase Auth**: login solo con usuario + contraseña (por dentro se
+  genera un email interno a partir del usuario; nadie lo ve ni lo escribe).
 - **Supabase Realtime**: entrega de mensajes y presencia (en línea /
   desconectado) en tiempo real, sin gestionar tú ningún WebSocket.
 - **GitHub Pages**: hosting gratis de los archivos estáticos.
@@ -31,13 +32,14 @@ saltársela editando el JavaScript del navegador.
 2. En **SQL Editor**, pega y ejecuta el contenido de
    `supabase/migrations/0001_init.sql`. Esto crea las tablas, las políticas
    de seguridad (RLS) y las funciones RPC.
-3. (Recomendado) En **Authentication → Providers → Email**, desactiva
-   *"Confirm email"* — así cualquiera que se registre entra directo, sin
-   tener que confirmar un correo. Si lo dejas activado, cada familiar
-   tendrá que pulsar el enlace de su email antes de poder entrar.
+3. **Obligatorio**: en **Authentication → Providers → Email**, desactiva
+   *"Confirm email"*. Como el registro solo pide un nombre de usuario (sin
+   email real), Supabase genera por dentro una dirección falsa
+   (`usuario@talkme.internal`) que nunca va a recibir ningún correo — si
+   dejas la confirmación activada, nadie podrá entrar nunca.
 
 Con esto ya está: **no hace falta CLI, ni Edge Functions, ni secrets** para
-que el chat funcione. El registro (usuario + email + contraseña + código de
+que el chat funcione. El registro (usuario + contraseña + código de
 invitación) va directo del navegador a Supabase.
 
 ### 2. Publicar en GitHub Pages
@@ -71,8 +73,8 @@ seguir.
 Al guardar, la app te da un **enlace único** con todo eso ya incluido. Ese
 es el enlace que le mandas a tu familia: al abrirlo, la app se conecta sola
 a tu Supabase y les deja directamente en la pantalla de "crear cuenta" con
-el código de invitación ya puesto — solo eligen su usuario, email y
-contraseña. Nadie edita archivos ni toca variables de entorno.
+el código de invitación ya puesto — solo eligen su usuario y contraseña.
+Nadie edita archivos ni toca variables de entorno.
 
 Si más adelante quieres volver a coger ese enlace (para invitar a alguien
 más) o corregir un dato mal escrito, usa el icono 🔗 o el enlace "⚙️ Cambiar
