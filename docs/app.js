@@ -63,28 +63,30 @@
 
   // Comprueba que la URL/anon key responden como un proyecto Supabase real
   // y que la tabla "profiles" existe (o sea, que se ejecutó la migración).
+  // Se consulta la tabla directamente (no el endpoint raíz /rest/v1/, que
+  // en los proyectos con el formato de keys nuevo exige la secret key y
+  // rechaza la publishable/anon key con 401 aunque sea correcta).
   async function testConnection(url, anonKey) {
     const base = url.replace(/\/+$/, '');
-    // Las keys nuevas de Supabase (sb_publishable_...) no son un JWT, así
-    // que probamos primero solo con "apikey" y, si falla, con las dos
-    // cabeceras (formato JWT antiguo) — sin asumir cuál usa tu proyecto.
-    let res = await fetch(`${base}/rest/v1/`, { headers: { apikey: anonKey } });
-    if (!res.ok) {
-      res = await fetch(`${base}/rest/v1/`, {
-        headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
-      });
-    }
-    if (!res.ok) {
-      throw new Error(`El servidor respondió ${res.status} — revisa la URL y la anon key`);
-    }
-    let spec;
+    const res = await fetch(`${base}/rest/v1/profiles?select=id&limit=1`, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+    });
+
+    let body = null;
     try {
-      spec = await res.json();
+      body = await res.json();
     } catch (err) {
-      throw new Error('Respuesta inesperada: ¿es realmente la URL de un proyecto Supabase?');
+      // respuesta sin cuerpo JSON, seguimos solo con el status
     }
-    const migrationOk = !!(spec.definitions && spec.definitions.profiles);
-    return { migrationOk };
+
+    if (res.status === 404 || body?.code === 'PGRST205') {
+      return { migrationOk: false };
+    }
+    if (!res.ok) {
+      const detail = body?.message || body?.error_description || body?.error || '';
+      throw new Error(`El servidor respondió ${res.status}${detail ? ': ' + detail : ''}`);
+    }
+    return { migrationOk: true };
   }
 
   const setupScreen = document.getElementById('setup-screen');
