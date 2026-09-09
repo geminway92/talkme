@@ -101,6 +101,30 @@ input:focus {
   text-decoration: underline;
 }
 
+#setup-test-btn {
+  background: transparent;
+  color: #4fa3ff;
+  border: 1px solid #2a3644;
+}
+
+#setup-test-result {
+  font-size: 13px;
+  min-height: 18px;
+  margin: 4px 0 0;
+}
+
+#setup-test-result.ok {
+  color: #4caf50;
+}
+
+#setup-test-result.warn {
+  color: #e0a030;
+}
+
+#setup-test-result.fail {
+  color: #ff6b6b;
+}
+
 button {
   cursor: pointer;
   border: none;

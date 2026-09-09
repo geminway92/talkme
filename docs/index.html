@@ -16,8 +16,10 @@
         <input id="setup-anon" type="text" placeholder="Anon public key de Supabase" required />
         <input id="setup-vapid" type="text" placeholder="VAPID public key (para notificaciones push)" />
         <input id="setup-invite" type="text" placeholder="Código de invitación (para prellenarlo en el enlace)" />
+        <button id="setup-test-btn" type="button">Probar conexión</button>
         <button type="submit">Guardar y generar enlace</button>
       </form>
+      <p id="setup-test-result"></p>
       <p id="setup-error" class="error"></p>
 
       <div id="setup-result" class="hidden">

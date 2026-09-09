@@ -45,36 +45,99 @@
     return `${location.origin}${location.pathname}?${params.toString()}`;
   }
 
-  function resetConfigAndReload(e) {
+  const FORCE_SETUP_KEY = 'talkme_force_setup';
+
+  // Vuelve a la pantalla de configuración precargada con lo que hubiera
+  // guardado (para poder corregir un dato mal escrito sin retiparlo todo).
+  // No borra la configuración hasta que se guarde el formulario de nuevo.
+  function editConfigAndReload(e) {
     e.preventDefault();
     try {
-      localStorage.removeItem(LS_KEY);
+      sessionStorage.setItem(FORCE_SETUP_KEY, '1');
     } catch (err) {
-      // nada que limpiar si localStorage no está disponible
+      // sin sessionStorage, igualmente recargamos: solo perderá el
+      // precargado, la config guardada sigue intacta
     }
     location.reload();
   }
 
+  // Comprueba que la URL/anon key responden como un proyecto Supabase real
+  // y que la tabla "profiles" existe (o sea, que se ejecutó la migración).
+  async function testConnection(url, anonKey) {
+    const res = await fetch(`${url.replace(/\/+$/, '')}/rest/v1/`, {
+      headers: { apikey: anonKey },
+    });
+    if (!res.ok) {
+      throw new Error(`El servidor respondió ${res.status} — revisa la URL y la anon key`);
+    }
+    let spec;
+    try {
+      spec = await res.json();
+    } catch (err) {
+      throw new Error('Respuesta inesperada: ¿es realmente la URL de un proyecto Supabase?');
+    }
+    const migrationOk = !!(spec.definitions && spec.definitions.profiles);
+    return { migrationOk };
+  }
+
   const setupScreen = document.getElementById('setup-screen');
   const setupForm = document.getElementById('setup-form');
+  const setupUrlInput = document.getElementById('setup-url');
+  const setupAnonInput = document.getElementById('setup-anon');
+  const setupVapidInput = document.getElementById('setup-vapid');
+  const setupInviteInput = document.getElementById('setup-invite');
+  const setupTestBtn = document.getElementById('setup-test-btn');
+  const setupTestResult = document.getElementById('setup-test-result');
   const setupError = document.getElementById('setup-error');
   const setupResult = document.getElementById('setup-result');
   const setupShareLink = document.getElementById('setup-share-link');
   const setupCopyBtn = document.getElementById('setup-copy-btn');
   const setupContinueBtn = document.getElementById('setup-continue-btn');
 
-  function showSetupScreen() {
+  function showSetupScreen(prefill) {
+    if (prefill) {
+      setupUrlInput.value = prefill.SUPABASE_URL || '';
+      setupAnonInput.value = prefill.SUPABASE_ANON_KEY || '';
+      setupVapidInput.value = prefill.VAPID_PUBLIC_KEY || '';
+      setupInviteInput.value = prefill.INVITE_CODE || '';
+    }
     setupScreen.classList.remove('hidden');
   }
+
+  setupTestBtn.addEventListener('click', async () => {
+    setupTestResult.className = '';
+    setupTestResult.textContent = 'Probando...';
+    const url = setupUrlInput.value.trim().replace(/\/+$/, '');
+    const anon = setupAnonInput.value.trim();
+    if (!url || !anon) {
+      setupTestResult.className = 'fail';
+      setupTestResult.textContent = 'Rellena al menos la URL y la anon key primero';
+      return;
+    }
+    try {
+      const { migrationOk } = await testConnection(url, anon);
+      if (migrationOk) {
+        setupTestResult.className = 'ok';
+        setupTestResult.textContent = '✅ Conecta bien y encuentra la tabla "profiles"';
+      } else {
+        setupTestResult.className = 'warn';
+        setupTestResult.textContent =
+          '⚠️ Conecta, pero no encuentra la tabla "profiles" — ¿ejecutaste supabase/migrations/0001_init.sql?';
+      }
+    } catch (err) {
+      setupTestResult.className = 'fail';
+      setupTestResult.textContent = `❌ ${err.message}`;
+    }
+  });
 
   setupForm.addEventListener('submit', (e) => {
     e.preventDefault();
     setupError.textContent = '';
     const cfg = {
-      SUPABASE_URL: document.getElementById('setup-url').value.trim().replace(/\/+$/, ''),
-      SUPABASE_ANON_KEY: document.getElementById('setup-anon').value.trim(),
-      VAPID_PUBLIC_KEY: document.getElementById('setup-vapid').value.trim(),
-      INVITE_CODE: document.getElementById('setup-invite').value.trim(),
+      SUPABASE_URL: setupUrlInput.value.trim().replace(/\/+$/, ''),
+      SUPABASE_ANON_KEY: setupAnonInput.value.trim(),
+      VAPID_PUBLIC_KEY: setupVapidInput.value.trim(),
+      INVITE_CODE: setupInviteInput.value.trim(),
     };
     if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
       setupError.textContent = 'La URL y la anon key son obligatorias';
@@ -97,7 +160,11 @@
     }
   });
 
-  document.getElementById('setup-edit-link').addEventListener('click', resetConfigAndReload);
+  document.getElementById('setup-edit-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    setupResult.classList.add('hidden');
+    setupForm.classList.remove('hidden');
+  });
 
   setupContinueBtn.addEventListener('click', () => {
     setupScreen.classList.add('hidden');
@@ -133,7 +200,7 @@
   const inviteLinkBtn = document.getElementById('invite-link-btn');
   const meLabel = document.getElementById('me');
 
-  document.getElementById('reset-config-link').addEventListener('click', resetConfigAndReload);
+  document.getElementById('reset-config-link').addEventListener('click', editConfigAndReload);
 
   if (cfg.INVITE_CODE) inviteCodeInput.value = cfg.INVITE_CODE;
 
@@ -522,18 +589,31 @@
   } // fin de boot()
 
   // ---- Resolución de la configuración de conexión ----
-  const urlConfig = readUrlConfig();
-  if (urlConfig) {
-    saveConfig(urlConfig);
-    // limpia los parámetros de la URL para que no queden en el historial
-    history.replaceState({}, '', location.pathname);
-    boot(urlConfig);
+  let forcedSetup = false;
+  try {
+    forcedSetup = sessionStorage.getItem(FORCE_SETUP_KEY) === '1';
+    if (forcedSetup) sessionStorage.removeItem(FORCE_SETUP_KEY);
+  } catch (err) {
+    // sin sessionStorage no hay forma de forzar el formulario tras
+    // "Cambiar configuración"; seguimos con el flujo normal
+  }
+
+  if (forcedSetup) {
+    showSetupScreen(readStoredConfig());
   } else {
-    const stored = readStoredConfig();
-    if (stored) {
-      boot(stored);
+    const urlConfig = readUrlConfig();
+    if (urlConfig) {
+      saveConfig(urlConfig);
+      // limpia los parámetros de la URL para que no queden en el historial
+      history.replaceState({}, '', location.pathname);
+      boot(urlConfig);
     } else {
-      showSetupScreen();
+      const stored = readStoredConfig();
+      if (stored) {
+        boot(stored);
+      } else {
+        showSetupScreen();
+      }
     }
   }
 })();
