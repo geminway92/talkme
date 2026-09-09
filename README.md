@@ -7,11 +7,9 @@ Supabase para autenticación, datos y tiempo real.
 
 - **Postgres** (Supabase): usuarios, contactos, mensajes — con Row Level
   Security, así que cada quien solo puede leer/escribir lo suyo.
-- **Supabase Auth**: login solo con usuario + PIN de 4 dígitos (por dentro
-  se genera un email y una contraseña internos a partir del usuario+PIN;
-  nadie los ve ni los escribe). Pensado para máxima sencillez en un grupo
-  de confianza, no para proteger datos sensibles — un PIN de 4 dígitos es
-  fácil de recordar pero también de adivinar por fuerza bruta.
+- **Supabase Auth**: login con usuario + contraseña (mínimo 6 caracteres,
+  con al menos una mayúscula y un número). Por dentro se genera un email
+  interno a partir del usuario; nadie lo ve ni lo escribe.
 - **Supabase Realtime**: entrega de mensajes y presencia (en línea /
   desconectado) en tiempo real, sin gestionar tú ningún WebSocket.
 - **GitHub Pages**: hosting gratis de los archivos estáticos.
@@ -45,7 +43,7 @@ saltársela editando el JavaScript del navegador.
    dejas la confirmación activada, nadie podrá entrar nunca.
 
 Con esto ya está: **no hace falta CLI, ni Edge Functions, ni secrets** para
-que el chat funcione. El registro (usuario + PIN de 4 dígitos + código de
+que el chat funcione. El registro (usuario + contraseña + código de
 invitación) va directo del navegador a Supabase.
 
 ### 2. Publicar en GitHub Pages
@@ -79,8 +77,9 @@ seguir.
 Al guardar, la app te da un **enlace único** con todo eso ya incluido. Ese
 es el enlace que le mandas a tu familia: al abrirlo, la app se conecta sola
 a tu Supabase y les deja directamente en la pantalla de "crear cuenta" con
-el código de invitación ya puesto — solo eligen su usuario y un PIN de 4
-dígitos. Nadie edita archivos ni toca variables de entorno.
+el código de invitación ya puesto — solo eligen su usuario y una contraseña
+(mín. 6 caracteres, con mayúscula y número). Nadie edita archivos ni toca
+variables de entorno.
 
 Si más adelante quieres volver a coger ese enlace (para invitar a alguien
 más) o corregir un dato mal escrito, usa el icono 🔗 o el enlace "⚙️ Cambiar

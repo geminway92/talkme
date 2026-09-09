@@ -257,17 +257,9 @@
     return `${slug}@talkme.internal`;
   }
 
-  // Supabase Auth exige una contraseña de al menos unos pocos caracteres,
-  // más de lo que da un PIN de 4 dígitos por sí solo. Para que la persona
-  // solo tenga que recordar su PIN, la "contraseña" real que se manda a
-  // Supabase combina el usuario + el PIN — nunca se muestra ni se pide
-  // por separado.
-  function derivePassword(username, pin) {
-    return `${username.trim().toLowerCase()}:${pin}`;
-  }
-
-  function isValidPin(pin) {
-    return /^[0-9]{4}$/.test(pin);
+  // Al menos 6 caracteres, una mayúscula y un número.
+  function isValidPassword(password) {
+    return password.length >= 6 && /[A-Z]/.test(password) && /[0-9]/.test(password);
   }
 
   // ---- Auth ----
@@ -279,11 +271,9 @@
 
   async function login() {
     authError.textContent = '';
-    const username = usernameInput.value;
-    const pin = passwordInput.value.trim();
     const { error } = await supabase.auth.signInWithPassword({
-      email: usernameToEmail(username),
-      password: derivePassword(username, pin),
+      email: usernameToEmail(usernameInput.value),
+      password: passwordInput.value,
     });
     if (error) authError.textContent = error.message;
   }
@@ -296,15 +286,16 @@
   async function register() {
     authError.textContent = '';
     const username = usernameInput.value.trim();
-    const pin = passwordInput.value.trim();
+    const password = passwordInput.value;
     const invite = inviteCodeInput.value.trim();
 
     if (!username || username.length < 3) {
       authError.textContent = 'El usuario debe tener al menos 3 caracteres';
       return;
     }
-    if (!isValidPin(pin)) {
-      authError.textContent = 'El PIN debe ser de 4 dígitos';
+    if (!isValidPassword(password)) {
+      authError.textContent =
+        'La contraseña debe tener al menos 6 caracteres, una mayúscula y un número';
       return;
     }
     if (cfg.INVITE_CODE && invite !== cfg.INVITE_CODE) {
@@ -314,7 +305,7 @@
 
     const { data, error } = await supabase.auth.signUp({
       email: usernameToEmail(username),
-      password: derivePassword(username, pin),
+      password,
     });
     if (error) {
       authError.textContent = error.message.includes('already registered')
