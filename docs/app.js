@@ -257,6 +257,19 @@
     return `${slug}@talkme.internal`;
   }
 
+  // Supabase Auth exige una contraseña de al menos unos pocos caracteres,
+  // más de lo que da un PIN de 4 dígitos por sí solo. Para que la persona
+  // solo tenga que recordar su PIN, la "contraseña" real que se manda a
+  // Supabase combina el usuario + el PIN — nunca se muestra ni se pide
+  // por separado.
+  function derivePassword(username, pin) {
+    return `${username.trim().toLowerCase()}:${pin}`;
+  }
+
+  function isValidPin(pin) {
+    return /^[0-9]{4}$/.test(pin);
+  }
+
   // ---- Auth ----
   authForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -266,9 +279,11 @@
 
   async function login() {
     authError.textContent = '';
+    const username = usernameInput.value;
+    const pin = passwordInput.value.trim();
     const { error } = await supabase.auth.signInWithPassword({
-      email: usernameToEmail(usernameInput.value),
-      password: passwordInput.value,
+      email: usernameToEmail(username),
+      password: derivePassword(username, pin),
     });
     if (error) authError.textContent = error.message;
   }
@@ -281,11 +296,15 @@
   async function register() {
     authError.textContent = '';
     const username = usernameInput.value.trim();
-    const password = passwordInput.value;
+    const pin = passwordInput.value.trim();
     const invite = inviteCodeInput.value.trim();
 
     if (!username || username.length < 3) {
       authError.textContent = 'El usuario debe tener al menos 3 caracteres';
+      return;
+    }
+    if (!isValidPin(pin)) {
+      authError.textContent = 'El PIN debe ser de 4 dígitos';
       return;
     }
     if (cfg.INVITE_CODE && invite !== cfg.INVITE_CODE) {
@@ -295,7 +314,7 @@
 
     const { data, error } = await supabase.auth.signUp({
       email: usernameToEmail(username),
-      password,
+      password: derivePassword(username, pin),
     });
     if (error) {
       authError.textContent = error.message.includes('already registered')

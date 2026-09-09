@@ -38,7 +38,7 @@
       <p class="subtitle">Chat sencillo en tiempo real</p>
       <form id="auth-form">
         <input id="username" type="text" placeholder="Usuario" autocomplete="username" required />
-        <input id="password" type="password" placeholder="Contraseña" autocomplete="current-password" required />
+        <input id="password" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="PIN (4 dígitos)" autocomplete="off" required />
         <input id="invite-code" type="text" placeholder="Código de invitación (solo para crear cuenta)" autocomplete="off" />
         <button type="submit" id="login-btn">Entrar</button>
         <button type="button" id="register-btn">Crear cuenta</button>
