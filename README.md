@@ -79,9 +79,14 @@ mira las suscripciones push del destinatario y le manda la notificación.
 
 ### 4. Publicar en GitHub Pages
 
-Sube los cambios a GitHub y activa Pages: **Settings → Pages → Source:
-Deploy from a branch → Branch: `main`, carpeta `/docs`**. En unos minutos
-tu chat estará en `https://tu-usuario.github.io/talkme/`. El repo debe ser
+El repo trae un workflow (`.github/workflows/pages.yml`) que publica la
+carpeta `docs/` automáticamente en cada push a `main`. Solo hace falta
+activarlo una vez: **Settings → Pages → Build and deployment → Source:
+"GitHub Actions"** (no "Deploy from a branch" — así te ahorras el
+desplegable de la carpeta). Al guardar, ve a la pestaña **Actions** del
+repo: debería haber (o lanzarse en el próximo push) una ejecución de
+"Publicar en GitHub Pages"; cuando termine en verde, tu chat estará en
+`https://tu-usuario.github.io/talkme/`. El repo debe ser
 público para que Pages funcione en el plan gratuito — no hay ningún secreto
 en él (ver "Notas de seguridad" más abajo).
 
