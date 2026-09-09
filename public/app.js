@@ -13,6 +13,7 @@
   const authForm = document.getElementById('auth-form');
   const usernameInput = document.getElementById('username');
   const passwordInput = document.getElementById('password');
+  const inviteCodeInput = document.getElementById('invite-code');
   const authError = document.getElementById('auth-error');
   const loginBtn = document.getElementById('login-btn');
   const registerBtn = document.getElementById('register-btn');
@@ -86,6 +87,7 @@
         body: JSON.stringify({
           username: usernameInput.value.trim(),
           password: passwordInput.value,
+          inviteCode: inviteCodeInput.value.trim(),
         }),
       });
       saveSession(token, user);

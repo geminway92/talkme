@@ -1,12 +1,28 @@
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+const SECRET_PATH = path.join(__dirname, '..', 'data', 'jwt-secret.txt');
 
-if (!process.env.JWT_SECRET) {
+function loadOrCreateSecret() {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+
+  if (fs.existsSync(SECRET_PATH)) {
+    return fs.readFileSync(SECRET_PATH, 'utf8').trim();
+  }
+
+  const generated = crypto.randomBytes(48).toString('hex');
+  fs.mkdirSync(path.dirname(SECRET_PATH), { recursive: true });
+  fs.writeFileSync(SECRET_PATH, generated, { mode: 0o600 });
   console.warn(
-    'AVISO: usando JWT_SECRET por defecto. Define la variable de entorno JWT_SECRET en producción.'
+    `AVISO: JWT_SECRET no definido, se generó uno nuevo en ${SECRET_PATH}. ` +
+      'Consérvalo entre despliegues o define la variable de entorno JWT_SECRET para no invalidar sesiones.'
   );
+  return generated;
 }
+
+const JWT_SECRET = loadOrCreateSecret();
 
 function signToken(user) {
   return jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, {

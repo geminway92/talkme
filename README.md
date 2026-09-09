@@ -1,15 +1,17 @@
 # TalkMe
 
-Chat sencillo estilo Telegram construido con Node.js, Express y WebSockets.
+Chat privado estilo Telegram construido con Node.js, Express y WebSockets,
+pensado para un grupo cerrado (familia/amigos) y no para uso público masivo.
 Cada usuario tiene su propia "red": solo puedes chatear con los contactos que
 tú mismo añades por nombre de usuario.
 
 ## Características
 
-- Registro e inicio de sesión con contraseña (hash con bcrypt) y JWT.
+- Registro cerrado mediante código de invitación (`INVITE_CODE`) e inicio de
+  sesión con contraseña (hash con bcrypt) y JWT.
 - Añadir contactos a tu red buscando por nombre de usuario.
 - Chat en tiempo real vía WebSockets (biblioteca `ws`).
-- Historial de mensajes persistido en `data/db.json`.
+- Historial de mensajes persistido en `data/db.json` (escritura atómica).
 - Indicador de presencia (en línea / desconectado).
 - Frontend en HTML/CSS/JS sin frameworks ni build step.
 
@@ -23,8 +25,20 @@ npm start
 El servidor arranca en `http://localhost:3000` (o el puerto de la variable
 `PORT`).
 
-Opcional: define `JWT_SECRET` en el entorno para producción; si no se
-define se usa un valor de desarrollo con un aviso en consola.
+### Variables de entorno recomendadas para uso privado
+
+- `INVITE_CODE`: código que debe introducirse para crear una cuenta. Sin él,
+  el registro queda abierto a cualquiera que llegue a la URL — imprescindible
+  si vas a exponer el servidor a internet para tu familia.
+- `JWT_SECRET`: secreto para firmar las sesiones. Si no lo defines, el
+  servidor genera uno automáticamente en `data/jwt-secret.txt` (no se
+  versiona) y lo reutiliza entre reinicios; en un despliegue con múltiples
+  instancias, define el mismo valor en todas para que las sesiones sean
+  válidas en cualquiera.
+
+```bash
+INVITE_CODE=mi-familia-2026 JWT_SECRET=$(openssl rand -hex 48) npm start
+```
 
 ## Cómo probarlo
 

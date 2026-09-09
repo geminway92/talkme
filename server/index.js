@@ -8,6 +8,14 @@ const db = require('./db');
 const { signToken, verifyToken, authMiddleware } = require('./auth');
 
 const PORT = process.env.PORT || 3000;
+const INVITE_CODE = process.env.INVITE_CODE || null;
+
+if (!INVITE_CODE) {
+  console.warn(
+    'AVISO: INVITE_CODE no definido, el registro está abierto a cualquiera. ' +
+      'Define la variable de entorno INVITE_CODE para restringir el alta a tu familia/red privada.'
+  );
+}
 
 const app = express();
 app.use(express.json());
@@ -16,11 +24,14 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // ---- Auth ----
 
 app.post('/api/register', (req, res) => {
-  const { username, password } = req.body || {};
+  const { username, password, inviteCode } = req.body || {};
   if (!username || !password || username.length < 3 || password.length < 4) {
     return res.status(400).json({
       error: 'Usuario (min 3) y contraseña (min 4) son obligatorios',
     });
+  }
+  if (INVITE_CODE && inviteCode !== INVITE_CODE) {
+    return res.status(403).json({ error: 'Código de invitación incorrecto' });
   }
   if (db.findUserByUsername(username)) {
     return res.status(409).json({ error: 'Ese usuario ya existe' });

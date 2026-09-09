@@ -13,7 +13,9 @@ function readDB() {
 }
 
 function writeDB(db) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+  const tmpPath = `${DB_PATH}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(db, null, 2));
+  fs.renameSync(tmpPath, DB_PATH);
 }
 
 function nextId(items) {
