@@ -197,20 +197,42 @@
   // ---- Elementos ----
   const authScreen = document.getElementById('auth-screen');
   const appScreen = document.getElementById('app-screen');
-  const authForm = document.getElementById('auth-form');
-  const usernameInput = document.getElementById('username');
-  const passwordInput = document.getElementById('password');
-  const inviteCodeInput = document.getElementById('invite-code');
-  const authError = document.getElementById('auth-error');
-  const registerBtn = document.getElementById('register-btn');
   const logoutBtn = document.getElementById('logout-btn');
   const notifBtn = document.getElementById('notif-btn');
   const inviteLinkBtn = document.getElementById('invite-link-btn');
   const meLabel = document.getElementById('me');
+  const myIdLabel = document.getElementById('my-id-label');
+  const copyMyIdBtn = document.getElementById('copy-my-id-btn');
+  const editAliasBtn = document.getElementById('edit-alias-btn');
+
+  const lockView = document.getElementById('lock-view');
+  const lockId = document.getElementById('lock-id');
+  const lockForm = document.getElementById('lock-form');
+  const lockPin = document.getElementById('lock-pin');
+  const lockError = document.getElementById('lock-error');
+  const lockSwitchLink = document.getElementById('lock-switch-link');
+
+  const identityChoice = document.getElementById('identity-choice');
+  const showCreateBtn = document.getElementById('show-create-btn');
+  const showRecoverBtn = document.getElementById('show-recover-btn');
+
+  const createForm = document.getElementById('create-form');
+  const createAlias = document.getElementById('create-alias');
+  const createPin = document.getElementById('create-pin');
+  const createPin2 = document.getElementById('create-pin2');
+  const createInvite = document.getElementById('create-invite');
+  const createError = document.getElementById('create-error');
+  const createBackLink = document.getElementById('create-back-link');
+
+  const recoverForm = document.getElementById('recover-form');
+  const recoverId = document.getElementById('recover-id');
+  const recoverPin = document.getElementById('recover-pin');
+  const recoverError = document.getElementById('recover-error');
+  const recoverBackLink = document.getElementById('recover-back-link');
 
   document.getElementById('reset-config-link').addEventListener('click', editConfigAndReload);
 
-  if (cfg.INVITE_CODE) inviteCodeInput.value = cfg.INVITE_CODE;
+  if (cfg.INVITE_CODE) createInvite.value = cfg.INVITE_CODE;
 
   // Sin VAPID_PUBLIC_KEY no hay Edge Function de push configurada todavía
   // (es un paso opcional) — ocultamos el botón en vez de dejarlo roto.
@@ -248,107 +270,209 @@
     return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
-  // Supabase Auth necesita un email por dentro, pero aquí solo se pide
-  // usuario: se genera un email interno determinista a partir del nombre
-  // de usuario. Nadie lo ve ni lo escribe, y no hace falta que sea real
-  // porque "Confirm email" está desactivado.
-  function usernameToEmail(username) {
-    const slug = username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
-    return `${slug}@talkme.internal`;
+  // ---- Identidad: sin Supabase Auth ----
+  // AVISO: esto no es seguridad real, es una elección consciente para
+  // máxima sencillez. El ID es como un "teléfono" (numérico, se genera
+  // solo) y el PIN es un candado dentro de la app, no una credencial
+  // verificada por el servidor — cualquiera con la anon key podría en
+  // teoría leer/escribir la base de datos saltándose esto.
+  const MY_ID_KEY = 'talkme_my_id';
+
+  async function hashPin(pin) {
+    const bytes = new TextEncoder().encode(pin);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
   }
 
-  // Al menos 6 caracteres, una mayúscula y un número.
-  function isValidPassword(password) {
-    return password.length >= 6 && /[A-Z]/.test(password) && /[0-9]/.test(password);
+  // 9 dígitos, como un número de teléfono corto.
+  function generateCandidateId() {
+    return Math.floor(1e8 + Math.random() * 9e8);
   }
 
-  // ---- Auth ----
-  authForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    login();
+  function readSavedId() {
+    try {
+      return localStorage.getItem(MY_ID_KEY);
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function saveId(id) {
+    try {
+      localStorage.setItem(MY_ID_KEY, String(id));
+    } catch (err) {
+      // sin localStorage habrá que volver a entrar el ID cada vez
+    }
+  }
+
+  function forgetId() {
+    try {
+      localStorage.removeItem(MY_ID_KEY);
+    } catch (err) {
+      // nada que borrar
+    }
+  }
+
+  function showLockView(id) {
+    lockId.textContent = id;
+    lockView.classList.remove('hidden');
+    identityChoice.classList.add('hidden');
+    createForm.classList.add('hidden');
+    recoverForm.classList.add('hidden');
+  }
+
+  function showChoiceView() {
+    lockView.classList.add('hidden');
+    identityChoice.classList.remove('hidden');
+    createForm.classList.add('hidden');
+    recoverForm.classList.add('hidden');
+  }
+
+  showCreateBtn.addEventListener('click', () => {
+    identityChoice.classList.add('hidden');
+    createForm.classList.remove('hidden');
   });
-  registerBtn.addEventListener('click', register);
+  createBackLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    createForm.classList.add('hidden');
+    identityChoice.classList.remove('hidden');
+  });
 
-  async function login() {
-    authError.textContent = '';
-    const { error } = await supabase.auth.signInWithPassword({
-      email: usernameToEmail(usernameInput.value),
-      password: passwordInput.value,
-    });
-    if (error) authError.textContent = error.message;
-  }
+  showRecoverBtn.addEventListener('click', () => {
+    identityChoice.classList.add('hidden');
+    recoverForm.classList.remove('hidden');
+  });
+  recoverBackLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    recoverForm.classList.add('hidden');
+    identityChoice.classList.remove('hidden');
+  });
 
-  // Registro directo contra Supabase (sin Edge Function): el código de
-  // invitación se comprueba aquí, en el navegador. No es una barrera
-  // infranqueable para alguien muy técnico, pero el filtro real es que
-  // solo tu familia tiene el enlace con la URL/anon key de tu proyecto —
-  // ver README para la variante con Edge Function si quieres reforzarlo.
-  async function register() {
-    authError.textContent = '';
-    const username = usernameInput.value.trim();
-    const password = passwordInput.value;
-    const invite = inviteCodeInput.value.trim();
+  lockSwitchLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    forgetId();
+    showChoiceView();
+  });
 
-    if (!username || username.length < 3) {
-      authError.textContent = 'El usuario debe tener al menos 3 caracteres';
+  lockForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    lockError.textContent = '';
+    const id = Number(readSavedId());
+    const ok = await tryUnlock(id, lockPin.value.trim());
+    if (!ok) lockError.textContent = 'PIN incorrecto';
+    lockPin.value = '';
+  });
+
+  recoverForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    recoverError.textContent = '';
+    const id = Number(recoverId.value.trim());
+    if (!id) {
+      recoverError.textContent = 'Escribe un ID válido';
       return;
     }
-    if (!isValidPassword(password)) {
-      authError.textContent =
-        'La contraseña debe tener al menos 6 caracteres, una mayúscula y un número';
+    const ok = await tryUnlock(id, recoverPin.value.trim());
+    if (!ok) recoverError.textContent = 'ID o PIN incorrectos';
+  });
+
+  async function tryUnlock(id, pin) {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, display_name, pin_hash')
+      .eq('id', id)
+      .maybeSingle();
+    if (error || !user) return false;
+    const hash = await hashPin(pin);
+    if (hash !== user.pin_hash) return false;
+    saveId(user.id);
+    await enterApp(user);
+    return true;
+  }
+
+  createForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    createError.textContent = '';
+    const alias = createAlias.value.trim();
+    const pin = createPin.value.trim();
+    const pin2 = createPin2.value.trim();
+    const invite = createInvite.value.trim();
+
+    if (!alias) {
+      createError.textContent = 'Escribe un nombre';
+      return;
+    }
+    if (pin.length < 4) {
+      createError.textContent = 'El PIN debe tener al menos 4 caracteres';
+      return;
+    }
+    if (pin !== pin2) {
+      createError.textContent = 'Los dos PIN no coinciden';
       return;
     }
     if (cfg.INVITE_CODE && invite !== cfg.INVITE_CODE) {
-      authError.textContent = 'Código de invitación incorrecto';
+      createError.textContent = 'Código de invitación incorrecto';
       return;
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email: usernameToEmail(username),
-      password,
-    });
-    if (error) {
-      authError.textContent = error.message.includes('already registered')
-        ? 'Ese usuario ya existe, elige otro'
-        : error.message;
+    const pinHash = await hashPin(pin);
+    let user = null;
+    for (let attempt = 0; attempt < 5 && !user; attempt++) {
+      const id = generateCandidateId();
+      const { data, error } = await supabase
+        .from('users')
+        .insert({ id, display_name: alias, pin_hash: pinHash })
+        .select('id, display_name')
+        .single();
+      if (!error) user = data;
+      else if (error.code !== '23505') {
+        createError.textContent = error.message;
+        return;
+      }
+    }
+    if (!user) {
+      createError.textContent = 'No se pudo generar un ID libre, prueba otra vez';
       return;
     }
-    if (!data.session) {
-      authError.textContent =
-        'Cuenta creada, pero falta confirmar el email. Desactiva "Confirm email" en Supabase (Authentication → Providers → Email) para entrar directo.';
-      return;
-    }
+    saveId(user.id);
+    await enterApp(user);
+  });
 
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({ id: data.user.id, username });
-    if (profileError) {
-      authError.textContent = profileError.message.includes('duplicate')
-        ? 'Ese usuario ya existe, elige otro'
-        : profileError.message;
-      return;
-    }
-    // onAuthStateChange detecta la sesión ya activa y entra solo a la app
-  }
+  logoutBtn.addEventListener('click', () => {
+    showAuthScreen();
+  });
 
-  logoutBtn.addEventListener('click', async () => {
-    await supabase.auth.signOut();
+  editAliasBtn.addEventListener('click', async () => {
+    const newAlias = window.prompt('Nuevo nombre:', state.user?.display_name || '');
+    if (!newAlias || !newAlias.trim()) return;
+    const { error } = await supabase
+      .from('users')
+      .update({ display_name: newAlias.trim() })
+      .eq('id', state.user.id);
+    if (!error) {
+      state.user.display_name = newAlias.trim();
+      meLabel.textContent = state.user.display_name;
+    }
   });
 
   // ---- Contactos ----
   addContactForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     contactError.textContent = '';
-    const username = addContactInput.value.trim();
-    if (!username) return;
+    const targetId = Number(addContactInput.value.trim());
+    if (!targetId) return;
 
-    const { data, error } = await supabase.rpc('request_contact', { target_username: username });
+    const { data, error } = await supabase.rpc('request_contact', {
+      me_id: state.user.id,
+      target_id: targetId,
+    });
     if (error) {
       contactError.textContent = error.message;
       return;
     }
     const messages = {
-      not_found: 'Usuario no encontrado',
+      not_found: 'No existe ningún usuario con ese ID',
       self: 'No puedes añadirte a ti mismo',
       already_contact: 'Ya está en tu red',
       already_pending: 'Ya le enviaste una solicitud',
@@ -365,10 +489,10 @@
   async function loadContacts() {
     const { data, error } = await supabase
       .from('contacts')
-      .select('contact_id, profiles!contacts_contact_id_fkey(username)')
+      .select('contact_id, users!contacts_contact_id_fkey(display_name)')
       .eq('owner_id', state.user.id);
     if (error) return;
-    state.contacts = data.map((r) => ({ id: r.contact_id, username: r.profiles.username }));
+    state.contacts = data.map((r) => ({ id: r.contact_id, name: r.users.display_name }));
     renderContacts();
   }
 
@@ -376,20 +500,20 @@
     const [{ data: incoming }, { data: outgoing }] = await Promise.all([
       supabase
         .from('contact_requests')
-        .select('id, from_id, profiles!contact_requests_from_id_fkey(username)')
+        .select('id, from_id, users!contact_requests_from_id_fkey(display_name)')
         .eq('to_id', state.user.id),
       supabase
         .from('contact_requests')
-        .select('id, to_id, profiles!contact_requests_to_id_fkey(username)')
+        .select('id, to_id, users!contact_requests_to_id_fkey(display_name)')
         .eq('from_id', state.user.id),
     ]);
     state.incomingRequests = (incoming || []).map((r) => ({
       id: r.id,
-      from: { id: r.from_id, username: r.profiles.username },
+      from: { id: r.from_id, name: r.users.display_name },
     }));
     state.outgoingRequests = (outgoing || []).map((r) => ({
       id: r.id,
-      to: { id: r.to_id, username: r.profiles.username },
+      to: { id: r.to_id, name: r.users.display_name },
     }));
     renderRequests();
   }
@@ -402,7 +526,7 @@
       const dot = document.createElement('span');
       dot.className = 'dot' + (state.onlineIds.has(c.id) ? ' online' : '');
       const name = document.createElement('span');
-      name.textContent = c.username;
+      name.textContent = c.name;
       li.appendChild(dot);
       li.appendChild(name);
       li.addEventListener('click', () => selectContact(c));
@@ -415,7 +539,7 @@
     for (const r of state.incomingRequests) {
       const li = document.createElement('li');
       const name = document.createElement('span');
-      name.textContent = r.from.username;
+      name.textContent = r.from.name;
       const actions = document.createElement('div');
       actions.className = 'request-actions';
 
@@ -440,14 +564,14 @@
     outgoingRequestsList.innerHTML = '';
     for (const r of state.outgoingRequests) {
       const li = document.createElement('li');
-      li.textContent = `${r.to.username} (pendiente)`;
+      li.textContent = `${r.to.name} (pendiente)`;
       outgoingRequestsList.appendChild(li);
     }
     outgoingSection.classList.toggle('hidden', state.outgoingRequests.length === 0);
   }
 
   async function respondToRequest(requestId, rpcName) {
-    const { error } = await supabase.rpc(rpcName, { request_id: requestId });
+    const { error } = await supabase.rpc(rpcName, { me_id: state.user.id, request_id: requestId });
     if (error) {
       contactError.textContent = error.message;
       return;
@@ -461,7 +585,7 @@
     renderContacts();
     chatEmpty.classList.add('hidden');
     chatActive.classList.remove('hidden');
-    chatWith.textContent = contact.username;
+    chatWith.textContent = contact.name;
     chatStatus.textContent = state.onlineIds.has(contact.id) ? 'en línea' : 'desconectado';
     messagesEl.innerHTML = '';
 
@@ -504,6 +628,7 @@
     if (!text || !state.selectedContact) return;
     messageInput.value = '';
     const { data, error } = await supabase.rpc('send_message', {
+      me_id: state.user.id,
       to_id: state.selectedContact.id,
       body: text,
     });
@@ -602,18 +727,24 @@
 
   notifBtn.addEventListener('click', enablePush);
 
+  copyMyIdBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(String(state.user.id));
+      copyMyIdBtn.textContent = '✅';
+      setTimeout(() => (copyMyIdBtn.textContent = '📋'), 1500);
+    } catch (err) {
+      window.prompt('Tu ID:', String(state.user.id));
+    }
+  });
+
   // ---- Arranque ----
   async function enterApp(user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('id', user.id)
-      .single();
-    state.user = { id: user.id, username: profile.username };
+    state.user = user;
 
     authScreen.classList.add('hidden');
     appScreen.classList.remove('hidden');
-    meLabel.textContent = state.user.username;
+    meLabel.textContent = user.display_name;
+    myIdLabel.textContent = user.id;
 
     await Promise.all([loadContacts(), loadRequests()]);
     subscribeRealtime();
@@ -633,14 +764,13 @@
     renderedMessageIds.clear();
     appScreen.classList.add('hidden');
     authScreen.classList.remove('hidden');
+
+    const savedId = readSavedId();
+    if (savedId) showLockView(savedId);
+    else showChoiceView();
   }
 
-  // onAuthStateChange dispara también con la sesión inicial al suscribirse
-  // (evento INITIAL_SESSION), así que no hace falta comprobar getSession() aparte.
-  supabase.auth.onAuthStateChange((event, session) => {
-    if (session?.user) enterApp(session.user);
-    else showAuthScreen();
-  });
+  showAuthScreen();
   } // fin de boot()
 
   // ---- Resolución de la configuración de conexión ----

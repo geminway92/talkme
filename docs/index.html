@@ -35,15 +35,43 @@
   <div id="auth-screen" class="screen hidden">
     <div class="auth-box">
       <h1>TalkMe</h1>
-      <p class="subtitle">Chat sencillo en tiempo real</p>
-      <form id="auth-form">
-        <input id="username" type="text" placeholder="Usuario" autocomplete="username" required />
-        <input id="password" type="password" placeholder="Contraseña (mín. 6, con mayúscula y número)" autocomplete="current-password" required />
-        <input id="invite-code" type="text" placeholder="Código de invitación (solo para crear cuenta)" autocomplete="off" />
-        <button type="submit" id="login-btn">Entrar</button>
-        <button type="button" id="register-btn">Crear cuenta</button>
+
+      <!-- Candado: ya hay un ID guardado en este dispositivo -->
+      <div id="lock-view" class="hidden">
+        <p class="subtitle">Bienvenido de nuevo — tu ID es <strong id="lock-id"></strong></p>
+        <form id="lock-form">
+          <input id="lock-pin" type="password" placeholder="PIN" autocomplete="current-password" required />
+          <button type="submit">Desbloquear</button>
+        </form>
+        <p id="lock-error" class="error"></p>
+        <a href="#" id="lock-switch-link" class="reset-config-link">No soy yo / usar otro ID</a>
+      </div>
+
+      <!-- Sin ID guardado: elegir crear o recuperar -->
+      <div id="identity-choice">
+        <p class="subtitle">¿Primera vez aquí, o ya tienes un ID de TalkMe?</p>
+        <button id="show-create-btn" type="button">Crear mi identidad</button>
+        <button id="show-recover-btn" type="button">Ya tengo un ID</button>
+      </div>
+
+      <form id="create-form" class="hidden">
+        <input id="create-alias" type="text" placeholder="Tu nombre (alias, puedes cambiarlo luego)" autocomplete="nickname" required />
+        <input id="create-pin" type="password" placeholder="Elige un PIN" autocomplete="new-password" required />
+        <input id="create-pin2" type="password" placeholder="Repite el PIN" autocomplete="new-password" required />
+        <input id="create-invite" type="text" placeholder="Código de invitación" autocomplete="off" />
+        <button type="submit">Crear identidad</button>
+        <a href="#" id="create-back-link" class="reset-config-link">Volver</a>
       </form>
-      <p id="auth-error" class="error"></p>
+      <p id="create-error" class="error"></p>
+
+      <form id="recover-form" class="hidden">
+        <input id="recover-id" type="text" inputmode="numeric" placeholder="Tu ID (los números que te dieron)" autocomplete="off" required />
+        <input id="recover-pin" type="password" placeholder="Tu PIN" autocomplete="current-password" required />
+        <button type="submit">Entrar con este ID</button>
+        <a href="#" id="recover-back-link" class="reset-config-link">Volver</a>
+      </form>
+      <p id="recover-error" class="error"></p>
+
       <a href="#" id="reset-config-link" class="reset-config-link">⚙️ Cambiar configuración de conexión</a>
     </div>
   </div>
@@ -58,8 +86,13 @@
           <button id="logout-btn" title="Cerrar sesión">⏻</button>
         </div>
       </div>
+      <div class="my-id-box">
+        Tu ID: <strong id="my-id-label"></strong>
+        <button id="copy-my-id-btn" type="button" title="Copiar tu ID">📋</button>
+        <button id="edit-alias-btn" type="button" title="Cambiar tu nombre">✏️</button>
+      </div>
       <form id="add-contact-form">
-        <input id="add-contact-input" type="text" placeholder="Añadir a tu red (usuario)" required />
+        <input id="add-contact-input" type="text" inputmode="numeric" placeholder="Añadir a tu red (ID)" required />
         <button type="submit">+</button>
       </form>
       <p id="contact-error" class="error"></p>

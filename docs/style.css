@@ -134,15 +134,41 @@ button {
   font-weight: 600;
 }
 
-#login-btn {
+#lock-form button,
+#create-form button[type='submit'],
+#recover-form button[type='submit'],
+#identity-choice button {
   background: #4fa3ff;
   color: #0f1620;
+  width: 100%;
 }
 
-#register-btn {
+#identity-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.my-id-box {
+  padding: 10px 16px;
+  font-size: 13px;
+  color: #8a97a5;
+  border-bottom: 1px solid #1a2531;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.my-id-box strong {
+  color: #e8edf2;
+  font-family: monospace;
+  letter-spacing: 0.5px;
+}
+
+.my-id-box button {
   background: transparent;
-  color: #4fa3ff;
-  border: 1px solid #4fa3ff;
+  margin-left: auto;
+  font-size: 13px;
 }
 
 .error {
