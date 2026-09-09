@@ -88,6 +88,19 @@ input:focus {
   border: 1px solid #4fa3ff;
 }
 
+.reset-config-link {
+  display: block;
+  margin-top: 16px;
+  font-size: 12px;
+  color: #5f6c7a;
+  text-decoration: none;
+}
+
+.reset-config-link:hover {
+  color: #8a97a5;
+  text-decoration: underline;
+}
+
 button {
   cursor: pointer;
   border: none;

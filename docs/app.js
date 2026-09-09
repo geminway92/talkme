@@ -45,6 +45,16 @@
     return `${location.origin}${location.pathname}?${params.toString()}`;
   }
 
+  function resetConfigAndReload(e) {
+    e.preventDefault();
+    try {
+      localStorage.removeItem(LS_KEY);
+    } catch (err) {
+      // nada que limpiar si localStorage no está disponible
+    }
+    location.reload();
+  }
+
   const setupScreen = document.getElementById('setup-screen');
   const setupForm = document.getElementById('setup-form');
   const setupError = document.getElementById('setup-error');
@@ -87,6 +97,8 @@
     }
   });
 
+  document.getElementById('setup-edit-link').addEventListener('click', resetConfigAndReload);
+
   setupContinueBtn.addEventListener('click', () => {
     setupScreen.classList.add('hidden');
     boot(readStoredConfig());
@@ -120,6 +132,8 @@
   const notifBtn = document.getElementById('notif-btn');
   const inviteLinkBtn = document.getElementById('invite-link-btn');
   const meLabel = document.getElementById('me');
+
+  document.getElementById('reset-config-link').addEventListener('click', resetConfigAndReload);
 
   if (cfg.INVITE_CODE) inviteCodeInput.value = cfg.INVITE_CODE;
 
