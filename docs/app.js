@@ -260,11 +260,20 @@
 
   const chatEmpty = document.getElementById('chat-empty');
   const chatActive = document.getElementById('chat-active');
+  const chatBackBtn = document.getElementById('chat-back-btn');
   const chatWith = document.getElementById('chat-with');
   const chatStatus = document.getElementById('chat-status');
   const messagesEl = document.getElementById('messages');
   const messageForm = document.getElementById('message-form');
   const messageInput = document.getElementById('message-input');
+
+  // En móvil, la lista de contactos y el chat son dos "pantallas"; esta
+  // clase decide cuál se ve (ver el @media en style.css).
+  chatBackBtn.addEventListener('click', () => {
+    appScreen.classList.remove('chat-open');
+    state.selectedContact = null;
+    renderContacts();
+  });
 
   function formatTime(iso) {
     return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -523,11 +532,15 @@
     for (const c of state.contacts) {
       const li = document.createElement('li');
       if (state.selectedContact && state.selectedContact.id === c.id) li.classList.add('active');
+      const avatar = document.createElement('span');
+      avatar.className = 'avatar';
+      avatar.textContent = (c.name || '?').trim().charAt(0);
       const dot = document.createElement('span');
       dot.className = 'dot' + (state.onlineIds.has(c.id) ? ' online' : '');
+      avatar.appendChild(dot);
       const name = document.createElement('span');
       name.textContent = c.name;
-      li.appendChild(dot);
+      li.appendChild(avatar);
       li.appendChild(name);
       li.addEventListener('click', () => selectContact(c));
       contactList.appendChild(li);
@@ -585,6 +598,7 @@
     renderContacts();
     chatEmpty.classList.add('hidden');
     chatActive.classList.remove('hidden');
+    appScreen.classList.add('chat-open');
     chatWith.textContent = contact.name;
     chatStatus.textContent = state.onlineIds.has(contact.id) ? 'en línea' : 'desconectado';
     messagesEl.innerHTML = '';
@@ -743,6 +757,7 @@
 
     authScreen.classList.add('hidden');
     appScreen.classList.remove('hidden');
+    appScreen.classList.remove('chat-open');
     meLabel.textContent = user.display_name;
     myIdLabel.textContent = user.id;
 
