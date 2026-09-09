@@ -1,28 +1,29 @@
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const db = require('./db');
 
-const SECRET_PATH = path.join(__dirname, '..', 'data', 'jwt-secret.txt');
+let JWT_SECRET = null;
 
-function loadOrCreateSecret() {
-  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
-
-  if (fs.existsSync(SECRET_PATH)) {
-    return fs.readFileSync(SECRET_PATH, 'utf8').trim();
+// Debe llamarse una vez, antes de arrancar el servidor. Si no hay
+// JWT_SECRET en el entorno, genera uno y lo guarda en la base de datos
+// (tabla settings) para que sobreviva a reinicios y despliegues.
+async function init() {
+  if (process.env.JWT_SECRET) {
+    JWT_SECRET = process.env.JWT_SECRET;
+    return;
   }
 
-  const generated = crypto.randomBytes(48).toString('hex');
-  fs.mkdirSync(path.dirname(SECRET_PATH), { recursive: true });
-  fs.writeFileSync(SECRET_PATH, generated, { mode: 0o600 });
-  console.warn(
-    `AVISO: JWT_SECRET no definido, se generó uno nuevo en ${SECRET_PATH}. ` +
-      'Consérvalo entre despliegues o define la variable de entorno JWT_SECRET para no invalidar sesiones.'
-  );
-  return generated;
+  let secret = await db.getSetting('jwt_secret');
+  if (!secret) {
+    secret = crypto.randomBytes(48).toString('hex');
+    await db.setSetting('jwt_secret', secret);
+    console.warn(
+      'AVISO: JWT_SECRET no definido, se generó uno nuevo y se guardó en la base de datos. ' +
+        'Define la variable de entorno JWT_SECRET para tener control explícito sobre él.'
+    );
+  }
+  JWT_SECRET = secret;
 }
-
-const JWT_SECRET = loadOrCreateSecret();
 
 function signToken(user) {
   return jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, {
@@ -46,4 +47,4 @@ function authMiddleware(req, res, next) {
   }
 }
 
-module.exports = { signToken, verifyToken, authMiddleware };
+module.exports = { init, signToken, verifyToken, authMiddleware };
