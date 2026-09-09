@@ -261,6 +261,7 @@
   const chatEmpty = document.getElementById('chat-empty');
   const chatActive = document.getElementById('chat-active');
   const chatBackBtn = document.getElementById('chat-back-btn');
+  const chatAvatar = document.getElementById('chat-avatar');
   const chatWith = document.getElementById('chat-with');
   const chatStatus = document.getElementById('chat-status');
   const messagesEl = document.getElementById('messages');
@@ -501,7 +502,28 @@
       .select('contact_id, users!contacts_contact_id_fkey(display_name)')
       .eq('owner_id', state.user.id);
     if (error) return;
-    state.contacts = data.map((r) => ({ id: r.contact_id, name: r.users.display_name }));
+
+    const byId = new Map(
+      data.map((r) => [r.contact_id, { id: r.contact_id, name: r.users.display_name, lastMessage: null }])
+    );
+
+    if (byId.size) {
+      const me = state.user.id;
+      const { data: msgs } = await supabase
+        .from('messages')
+        .select('from_id, to_id, body, created_at')
+        .or(`from_id.eq.${me},to_id.eq.${me}`)
+        .order('created_at', { ascending: false });
+      for (const m of msgs || []) {
+        const otherId = m.from_id === me ? m.to_id : m.from_id;
+        const c = byId.get(otherId);
+        if (c && !c.lastMessage) {
+          c.lastMessage = { body: m.body, createdAt: m.created_at, mine: m.from_id === me };
+        }
+      }
+    }
+
+    state.contacts = [...byId.values()];
     renderContacts();
   }
 
@@ -527,21 +549,49 @@
     renderRequests();
   }
 
+  const AVATAR_COLORS = ['#e17076', '#eda86c', '#a695e7', '#7bc862', '#6ec9cb', '#65aadd', '#ee7aae'];
+  function avatarColor(id) {
+    return AVATAR_COLORS[Number(id) % AVATAR_COLORS.length];
+  }
+
   function renderContacts() {
     contactList.innerHTML = '';
     for (const c of state.contacts) {
       const li = document.createElement('li');
       if (state.selectedContact && state.selectedContact.id === c.id) li.classList.add('active');
+
       const avatar = document.createElement('span');
       avatar.className = 'avatar';
+      avatar.style.background = avatarColor(c.id);
       avatar.textContent = (c.name || '?').trim().charAt(0);
       const dot = document.createElement('span');
       dot.className = 'dot' + (state.onlineIds.has(c.id) ? ' online' : '');
       avatar.appendChild(dot);
+
+      const info = document.createElement('div');
+      info.className = 'contact-info';
+      const nameRow = document.createElement('div');
+      nameRow.className = 'contact-name-row';
       const name = document.createElement('span');
+      name.className = 'contact-name';
       name.textContent = c.name;
+      nameRow.appendChild(name);
+      if (c.lastMessage) {
+        const time = document.createElement('span');
+        time.className = 'contact-time';
+        time.textContent = formatTime(c.lastMessage.createdAt);
+        nameRow.appendChild(time);
+      }
+      const preview = document.createElement('div');
+      preview.className = 'contact-preview';
+      preview.textContent = c.lastMessage
+        ? (c.lastMessage.mine ? 'Tú: ' : '') + c.lastMessage.body
+        : 'Di hola 👋';
+      info.appendChild(nameRow);
+      info.appendChild(preview);
+
       li.appendChild(avatar);
-      li.appendChild(name);
+      li.appendChild(info);
       li.addEventListener('click', () => selectContact(c));
       contactList.appendChild(li);
     }
@@ -599,6 +649,8 @@
     chatEmpty.classList.add('hidden');
     chatActive.classList.remove('hidden');
     appScreen.classList.add('chat-open');
+    chatAvatar.style.background = avatarColor(contact.id);
+    chatAvatar.textContent = (contact.name || '?').trim().charAt(0);
     chatWith.textContent = contact.name;
     chatStatus.textContent = state.onlineIds.has(contact.id) ? 'en línea' : 'desconectado';
     messagesEl.innerHTML = '';
@@ -635,6 +687,20 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
+  // Actualiza la vista previa del último mensaje en la lista de contactos
+  // y sube ese contacto arriba del todo (como en Telegram).
+  function updateContactPreview(contactId, lastMessage) {
+    const c = state.contacts.find((x) => x.id === contactId);
+    if (!c) return;
+    c.lastMessage = lastMessage;
+    state.contacts.sort((a, b) => {
+      const ta = a.lastMessage ? new Date(a.lastMessage.createdAt).getTime() : 0;
+      const tb = b.lastMessage ? new Date(b.lastMessage.createdAt).getTime() : 0;
+      return tb - ta;
+    });
+    renderContacts();
+  }
+
   // ---- Mensajes ----
   messageForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -650,6 +716,7 @@
       contactError.textContent = error.message;
       return;
     }
+    updateContactPreview(data.to_id, { body: data.body, createdAt: data.created_at, mine: true });
     if (state.selectedContact && state.selectedContact.id === data.to_id) {
       renderMessage(data);
       scrollToBottom();
@@ -667,6 +734,7 @@
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `to_id=eq.${me}` },
         ({ new: msg }) => {
+          updateContactPreview(msg.from_id, { body: msg.body, createdAt: msg.created_at, mine: false });
           if (state.selectedContact && state.selectedContact.id === msg.from_id) {
             renderMessage(msg);
             scrollToBottom();

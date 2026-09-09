@@ -115,13 +115,16 @@
       <div id="chat-active" class="chat-active hidden">
         <div class="chat-header">
           <button id="chat-back-btn" type="button" title="Volver">←</button>
-          <span id="chat-with"></span>
-          <span id="chat-status" class="status"></span>
+          <span id="chat-avatar" class="avatar"></span>
+          <div class="chat-header-info">
+            <span id="chat-with"></span>
+            <span id="chat-status" class="status"></span>
+          </div>
         </div>
         <div id="messages" class="messages"></div>
         <form id="message-form">
           <input id="message-input" type="text" placeholder="Escribe un mensaje..." autocomplete="off" required />
-          <button type="submit">Enviar</button>
+          <button type="submit" title="Enviar">➤</button>
         </form>
       </div>
     </main>
